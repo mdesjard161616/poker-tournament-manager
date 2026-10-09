@@ -4,9 +4,12 @@ import {
   MAX_TABLES,
   MIN_SEATS,
   MIN_TABLES,
+  holdbackAmount,
   money,
   nameError,
+  payoutPool,
   playerOwes,
+  prizePool,
   seatCapacity,
   startBlockers,
   suggestedTableCount,
@@ -85,6 +88,31 @@ export function SetupScreen({ t, selectedId, setSelectedId, openDetail, openSeat
             <span>Rebuy ($)</span>
             <NumInput value={t.rebuyAmount} min={0} onCommit={(amount) => dispatch({ type: 'setRebuyAmount', amount })} />
           </label>
+          <label className="field">
+            <span>Set aside from pool (%)</span>
+            <NumInput
+              value={t.holdback?.percent ?? 0}
+              min={0}
+              max={100}
+              onCommit={(percent) => dispatch({ type: 'setHoldback', percent, label: t.holdback?.label ?? '' })}
+            />
+          </label>
+          {(t.holdback?.percent ?? 0) > 0 && (
+            <>
+              <label className="field">
+                <span>For</span>
+                <input
+                  className="input grow"
+                  placeholder="who it goes to"
+                  value={t.holdback?.label ?? ''}
+                  onChange={(e) => dispatch({ type: 'setHoldback', percent: t.holdback?.percent ?? 0, label: e.target.value })}
+                />
+              </label>
+              <p className="hint">
+                {money(holdbackAmount(t))} of the {money(prizePool(t))} pool is set aside; prizes are paid from the other {money(payoutPool(t))}.
+              </p>
+            </>
+          )}
           {!setup && <p className="hint">A new buy-in or rebuy amount applies to new charges only. Charges already made keep their amount.</p>}
           <label className="field">
             <span>Tables</span>

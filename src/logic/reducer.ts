@@ -1,4 +1,5 @@
 import {
+  MAX_REBUYS_AT_ONCE,
   MAX_SEATS,
   MAX_TABLES,
   MIN_SEATS,
@@ -51,7 +52,8 @@ export type Action =
   | { type: 'randomizeAll' }
   | { type: 'randomizeUnseated' }
   | { type: 'start' }
-  | { type: 'rebuy'; playerId: string; method: 'cash' | 'interac' | 'owes' }
+  | { type: 'rebuy'; playerId: string; method: 'cash' | 'interac' | 'owes'; count?: number }
+  | { type: 'setHoldback'; percent: number; label: string }
   | { type: 'markPaid'; playerId: string }
   | { type: 'settleFromPrize'; playerId: string }
   | { type: 'payPrize'; playerId: string; method: 'cash' | 'interac' }
@@ -180,6 +182,18 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
       if (payoutPercentsError(action.percents)) return t;
       return { ...t, payoutPercents: action.percents.slice() };
 
+    case 'setHoldback': {
+      const { percent } = action;
+      const label = action.label;
+      if (!Number.isInteger(percent) || percent < 0 || percent > 100) return t;
+      if (percent === (t.holdback?.percent ?? 0) && label === (t.holdback?.label ?? '')) return t;
+      if (percent === 0 && label.trim() === '') {
+        const { holdback: _holdback, ...rest } = t;
+        return rest;
+      }
+      return { ...t, holdback: { percent, label } };
+    }
+
     case 'setPayoutRounding':
       if (!ROUNDING_CHOICES.includes(action.rounding) || action.rounding === t.payoutRounding) return t;
       return { ...t, payoutRounding: action.rounding };
@@ -259,12 +273,16 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
 
     case 'rebuy': {
       if (!running || !t.rebuysAllowed || !isActive(t, action.playerId)) return t;
+      const count = action.count ?? 1;
+      if (!Number.isInteger(count) || count < 1 || count > MAX_REBUYS_AT_ONCE) return t;
       const amount = t.rebuyAmount;
+      const total = amount * count;
       const method = action.method;
+      // One charge per rebuy so each can be deleted on its own; one payment for the lot.
       return mapPlayer(t, action.playerId, (p) => ({
         ...p,
-        charges: [...p.charges, { id: newId('c'), kind: 'rebuy', amount }],
-        payments: method !== 'owes' && amount > 0 ? [...p.payments, { id: newId('y'), amount, method }] : p.payments,
+        charges: [...p.charges, ...Array.from({ length: count }, () => ({ id: newId('c'), kind: 'rebuy' as const, amount }))],
+        payments: method !== 'owes' && total > 0 ? [...p.payments, { id: newId('y'), amount: total, method }] : p.payments,
       }));
     }
 

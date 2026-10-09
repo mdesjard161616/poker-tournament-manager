@@ -1008,3 +1008,10 @@ textarea.input.entry {
 .line span:first-child {
   width: 84px;
 }
+
+.set-aside {
+  background: #173a52;
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  padding: 8px 10px;
+}

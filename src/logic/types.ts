@@ -21,6 +21,8 @@ export interface Tournament {
   tables: Table[];
   players: Player[];
   eliminationOrder: string[]; // player ids, first out first
+  /** A share of the pool set aside before prizes, for example for a charity night. */
+  holdback?: { percent: number; label: string };
   /** Agreed amounts for the players still in when they chopped. Setting it ends the tournament. */
   deal?: DealShare[];
 }

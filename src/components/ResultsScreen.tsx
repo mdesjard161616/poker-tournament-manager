@@ -5,8 +5,11 @@ import {
   dealPool,
   evenDeal,
   finishingPlace,
+  holdbackAmount,
+  holdbackLabel,
   money,
   ordinal,
+  payoutPool,
   payoutsAreFinal,
   playerOwes,
   settleAmount,
@@ -71,6 +74,12 @@ export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; o
               Cancel deal
             </button>
           </div>
+        )}
+        {holdbackAmount(t) > 0 && (
+          <p className="set-aside">
+            <b>{money(holdbackAmount(t))}</b> ({t.holdback!.percent}% of the pool) goes to {holdbackLabel(t)}. Prizes share the other{' '}
+            {money(payoutPool(t))}.
+          </p>
         )}
         <table className="grid">
           <thead>

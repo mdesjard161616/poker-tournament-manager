@@ -6,6 +6,7 @@ export const MAX_TABLES = 8;
 export const MIN_SEATS = 2;
 export const MAX_SEATS = 10;
 export const ROUNDING_CHOICES = [1, 5, 10, 20];
+export const MAX_REBUYS_AT_ONCE = 5;
 
 // ---------- construction ----------
 
@@ -213,6 +214,21 @@ export function prizePool(t: Tournament): number {
   return t.players.reduce((sum, p) => sum + playerTotal(p), 0);
 }
 
+/** Who the set-aside share is for, as shown in the app. */
+export function holdbackLabel(t: Tournament): string {
+  return t.holdback?.label.trim() || 'set aside';
+}
+
+/** The share of the pool set aside before prizes, in whole dollars. */
+export function holdbackAmount(t: Tournament): number {
+  return Math.round((prizePool(t) * (t.holdback?.percent ?? 0)) / 100);
+}
+
+/** What is paid out as prizes: the pool less the amount set aside. */
+export function payoutPool(t: Tournament): number {
+  return prizePool(t) - holdbackAmount(t);
+}
+
 export function collected(t: Tournament): { total: number; cash: number; interac: number; prize: number } {
   const sums = { cash: 0, interac: 0, prize: 0 };
   for (const p of t.players) {
@@ -273,7 +289,7 @@ export function finishingPlace(t: Tournament, playerId: string): number | null {
 // ---------- settling prizes ----------
 
 function placePayouts(t: Tournament): number[] {
-  return computePayouts(prizePool(t), effectivePayoutPercents(t), t.payoutRounding);
+  return computePayouts(payoutPool(t), effectivePayoutPercents(t), t.payoutRounding);
 }
 
 /** Deal amount, or the prize for the finishing place; 0 while still in or outside the paid places. */
@@ -289,7 +305,7 @@ export function prizeFor(t: Tournament, playerId: string): number {
 export function dealPool(t: Tournament): number {
   const payouts = placePayouts(t);
   const won = t.eliminationOrder.reduce((sum, id) => sum + (payouts[finishingPlace(t, id)! - 1] ?? 0), 0);
-  return prizePool(t) - won;
+  return payoutPool(t) - won;
 }
 
 export function dealError(t: Tournament, shares: DealShare[]): string | null {
@@ -377,6 +393,8 @@ export interface CashBox {
   /** Prizes not handed over yet, by any method. */
   leftToPay: number;
   interacOut: number;
+  /** Set aside from the pool, still to hand to its recipient. */
+  setAside: number;
 }
 
 export function cashBox(t: Tournament): CashBox {
@@ -391,7 +409,7 @@ export function cashBox(t: Tournament): CashBox {
     leftToPay += settlement(t, p).toPay;
   }
   const cashIn = collected(t).cash;
-  return { cashIn, cashOut, inBox: cashIn - cashOut, leftToPay, interacOut };
+  return { cashIn, cashOut, inBox: cashIn - cashOut, leftToPay, interacOut, setAside: holdbackAmount(t) };
 }
 
 // ---------- table alerts ----------

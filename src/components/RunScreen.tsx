@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import {
+  MAX_REBUYS_AT_ONCE,
   MAX_TABLES,
   activePlayers,
   computeAlert,
+  holdbackAmount,
   money,
   nameError,
   openTables,
+  payoutPool,
   playerOwes,
   prizePool,
   suggestSeat,
@@ -31,6 +34,7 @@ interface Props {
 export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, openSeatingList, goTo }: Props) {
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [confirmOut, setConfirmOut] = useState(false);
+  const [rebuys, setRebuys] = useState(1);
   const [adding, setAdding] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -59,6 +63,7 @@ export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, o
   const closeSheet = () => {
     setSheetId(null);
     setConfirmOut(false);
+    setRebuys(1);
   };
 
   const onSeat = (tableId: string, seat: number, occupant: Player | null) => {
@@ -89,6 +94,11 @@ export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, o
         <span className="counter">
           pool <b>{money(prizePool(t))}</b>
         </span>
+        {holdbackAmount(t) > 0 && (
+          <span className="counter">
+            prizes <b>{money(payoutPool(t))}</b>
+          </span>
+        )}
         <input
           className="input search"
           type="search"
@@ -232,14 +242,28 @@ export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, o
           {playerOwes(sheetPlayer) > 0 && <p className="hint">Owes {money(playerOwes(sheetPlayer))}</p>}
           {running && t.rebuysAllowed && (
             <div className="panel">
-              <h3>Rebuy {money(t.rebuyAmount)}</h3>
+              <h3>
+                Rebuy {rebuys > 1 ? `${rebuys} × ${money(t.rebuyAmount)} = ${money(rebuys * t.rebuyAmount)}` : money(t.rebuyAmount)}
+              </h3>
+              <div className="row">
+                {Array.from({ length: MAX_REBUYS_AT_ONCE }, (_, i) => i + 1).map((n) => (
+                  <button
+                    key={n}
+                    className={`btn small grow${n === rebuys ? ' active' : ''}`}
+                    aria-label={`${n} rebuy${n === 1 ? '' : 's'}`}
+                    onClick={() => setRebuys(n)}
+                  >
+                    ×{n}
+                  </button>
+                ))}
+              </div>
               <div className="row">
                 {(['cash', 'interac', 'owes'] as const).map((method) => (
                   <button
                     key={method}
                     className="btn primary grow"
                     onClick={() => {
-                      dispatch({ type: 'rebuy', playerId: sheetPlayer.id, method });
+                      dispatch({ type: 'rebuy', playerId: sheetPlayer.id, method, count: rebuys });
                       closeSheet();
                     }}
                   >

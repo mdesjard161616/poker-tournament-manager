@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cashBox, collected, money, outstanding, owedFromPrizes, playerOwes, playerPaid, playerTotal, prizePool, rebuyCount } from '../logic/logic';
+import { cashBox, collected, holdbackLabel, money, outstanding, owedFromPrizes, playerOwes, playerPaid, playerTotal, prizePool, rebuyCount } from '../logic/logic';
 import type { Player, Tournament } from '../logic/types';
 import { dispatch } from '../store';
 
@@ -60,6 +60,11 @@ export function MoneyScreen({ t, openDetail }: { t: Tournament; openDetail: (id:
         <div className="stat">
           <span>Pool</span>
           <b>{money(pool)}</b>
+          {box.setAside > 0 && (
+            <small>
+              {money(box.setAside)} for {holdbackLabel(t)} · {money(pool - box.setAside)} in prizes
+            </small>
+          )}
         </div>
         <div className="stat">
           <span>Collected</span>
@@ -85,6 +90,7 @@ export function MoneyScreen({ t, openDetail }: { t: Tournament; openDetail: (id:
             {box.cashOut > 0 && `${money(box.cashIn)} in − ${money(box.cashOut)} prizes paid · `}
             {box.leftToPay > 0 ? `prizes left to pay ${money(box.leftToPay)}` : t.status === 'finished' ? 'all prizes paid' : 'cash collected so far'}
             {box.interacOut > 0 && ` · ${money(box.interacOut)} of prizes sent by Interac`}
+            {box.setAside > 0 && ` · plus ${money(box.setAside)} for ${holdbackLabel(t)}`}
           </small>
         </div>
       </div>

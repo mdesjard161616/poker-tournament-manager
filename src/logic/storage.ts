@@ -99,6 +99,12 @@ export function parseTournament(v: unknown): Tournament | null {
   if (!eliminationOrder.every((id) => playerIds.has(id)) || new Set(eliminationOrder).size !== eliminationOrder.length) return null;
   const deal = v.deal === undefined ? undefined : parseList(v.deal, parseDealShare);
   if (deal === null || (deal && !deal.every((d) => playerIds.has(d.playerId)))) return null;
+  let holdback: Tournament['holdback'];
+  if (v.holdback !== undefined) {
+    const h = v.holdback;
+    if (!isObject(h) || !isInt(h.percent) || h.percent < 0 || h.percent > 100 || typeof h.label !== 'string') return null;
+    holdback = { percent: h.percent, label: h.label };
+  }
   const seatKeys = new Set<string>();
   for (const p of players) {
     if (!p.seat) continue;
@@ -121,6 +127,7 @@ export function parseTournament(v: unknown): Tournament | null {
     tables,
     players,
     eliminationOrder,
+    ...(holdback ? { holdback } : {}),
     ...(deal ? { deal } : {}),
   };
 }

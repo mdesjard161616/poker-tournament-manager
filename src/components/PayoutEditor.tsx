@@ -4,9 +4,12 @@ import {
   computePayouts,
   defaultPayoutPercents,
   effectivePayoutPercents,
+  holdbackAmount,
+  holdbackLabel,
   money,
   ordinal,
   payoutPercentsError,
+  payoutPool,
   payoutsAreFinal,
   prizePool,
 } from '../logic/logic';
@@ -20,7 +23,8 @@ export function PayoutEditor({ t }: { t: Tournament }) {
   const [draft, setDraft] = useState<string[]>(percents.map(String));
   useEffect(() => setDraft(key.split('/')), [key]);
 
-  const pool = prizePool(t);
+  const pool = payoutPool(t);
+  const aside = holdbackAmount(t);
   const payouts = computePayouts(pool, percents, t.payoutRounding);
   const numbers = draft.map((d) => (d.trim() === '' ? NaN : Number(d)));
   const dirty = draft.join('/') !== key;
@@ -97,7 +101,12 @@ export function PayoutEditor({ t }: { t: Tournament }) {
           </button>
         ))}
       </div>
-      <p className="hint">Pool {money(pool)}. 1st takes what is left after the other places are rounded.</p>
+      <p className="hint">
+        {aside > 0
+          ? `Pool ${money(prizePool(t))} − ${money(aside)} (${t.holdback!.percent}%) for ${holdbackLabel(t)} = ${money(pool)} in prizes.`
+          : `Pool ${money(pool)}.`}{' '}
+        1st takes what is left after the other places are rounded.
+      </p>
     </div>
   );
 }

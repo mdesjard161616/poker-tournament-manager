@@ -9,6 +9,8 @@ import {
   computeAlert,
   computePayouts,
   finishingPlace,
+  holdbackAmount,
+  payoutPool,
   outstanding,
   owedFromPrizes,
   settlement,
@@ -433,10 +435,10 @@ describe('paying prizes', () => {
   it('tracks the cash box as prizes are handed over', () => {
     let { state, ids } = finished();
     // Pool 400: 200 / 120 / 80. Nine paid cash (360); the winner still owes 40.
-    expect(cashBox(state.tournament)).toEqual({ cashIn: 360, cashOut: 0, inBox: 360, leftToPay: 360, interacOut: 0 });
+    expect(cashBox(state.tournament)).toEqual({ cashIn: 360, cashOut: 0, inBox: 360, leftToPay: 360, interacOut: 0, setAside: 0 });
     state = reduce(state, { type: 'payPrize', playerId: ids[1], method: 'cash' });
     state = reduce(state, { type: 'payPrize', playerId: ids[2], method: 'interac' });
-    expect(cashBox(state.tournament)).toEqual({ cashIn: 360, cashOut: 120, inBox: 240, leftToPay: 160, interacOut: 80 });
+    expect(cashBox(state.tournament)).toEqual({ cashIn: 360, cashOut: 120, inBox: 240, leftToPay: 160, interacOut: 80, setAside: 0 });
     expect(settlement(state.tournament, player(state, ids[1]))).toMatchObject({ prize: 120, paidOut: 120, toPay: 0 });
     // Nothing left to pay: a second press does nothing.
     expect(reduce(state, { type: 'payPrize', playerId: ids[1], method: 'cash' })).toBe(state);
@@ -505,6 +507,68 @@ describe('final-table deal', () => {
     expect(restored.tournament).toEqual(state.tournament);
     expect(restored.tournament.deal).toHaveLength(3);
     expect(restored.tournament.players[0].prizePaid).toHaveLength(1);
+  });
+});
+
+describe('charity night', () => {
+  // Buy-in 100, rebuy 20, half the pool set aside.
+  function charity(): { state: AppState; ids: string[] } {
+    const state = run(
+      setup(10, 2),
+      { type: 'setBuyIn', amount: 100 },
+      { type: 'setRebuyAmount', amount: 20 },
+      { type: 'setHoldback', percent: 50, label: 'the family' },
+      { type: 'randomizeAll' },
+      { type: 'start' },
+    );
+    return { state, ids: state.tournament.players.map((p) => p.id) };
+  }
+  const player = (state: AppState, id: string) => state.tournament.players.find((p) => p.id === id)!;
+
+  it('up to 5 rebuys at once: one charge each, one payment for the lot', () => {
+    let { state, ids } = charity();
+    state = reduce(state, { type: 'rebuy', playerId: ids[0], method: 'cash', count: 5 });
+    expect(player(state, ids[0]).charges.filter((c) => c.kind === 'rebuy')).toHaveLength(5);
+    expect(player(state, ids[0]).payments).toMatchObject([{ amount: 100, method: 'cash' }]);
+    expect(playerTotal(player(state, ids[0]))).toBe(200);
+    expect(playerOwes(player(state, ids[0]))).toBe(100);
+    state = reduce(state, { type: 'rebuy', playerId: ids[1], method: 'owes', count: 3 });
+    expect(playerOwes(player(state, ids[1]))).toBe(160);
+    expect(reduce(state, { type: 'rebuy', playerId: ids[1], method: 'cash', count: 6 })).toBe(state);
+    expect(reduce(state, { type: 'rebuy', playerId: ids[1], method: 'cash', count: 0 })).toBe(state);
+    // One Undo takes back the whole batch.
+    expect(player(reduce(state, { type: 'undo' }), ids[1]).charges).toHaveLength(1);
+  });
+
+  it('sets half the pool aside and pays prizes from the rest', () => {
+    let { state, ids } = charity();
+    state = reduce(state, { type: 'rebuy', playerId: ids[0], method: 'cash', count: 5 });
+    state = reduce(state, { type: 'rebuy', playerId: ids[1], method: 'cash', count: 1 });
+    for (const id of ids.slice(1).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
+    const t = state.tournament;
+    expect(prizePool(t)).toBe(1120);
+    expect(holdbackAmount(t)).toBe(560);
+    expect(payoutPool(t)).toBe(560);
+    // 50 / 30 / 20 of 560 rounded to 5: 280 / 170 / 110
+    expect(ids.slice(0, 3).map((id) => settlement(t, player(state, id)).prize)).toEqual([280, 170, 110]);
+    expect(cashBox(t).setAside).toBe(560);
+    // Everyone still owes their full charges: the amount set aside does not reduce what is collected.
+    expect(outstanding(t)).toBe(1120 - 120);
+    expect(parseAppState(JSON.parse(serializeState(state)))!.tournament.holdback).toEqual({ percent: 50, label: 'the family' });
+  });
+
+  it('a deal shares only the prize part', () => {
+    let { state, ids } = charity();
+    for (const id of ids.slice(2).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
+    // Pool 1,000, 500 set aside, 3rd place already won 100.
+    expect(dealPool(state.tournament)).toBe(400);
+  });
+
+  it('turning it off restores the full pool', () => {
+    let { state } = charity();
+    state = reduce(state, { type: 'setHoldback', percent: 0, label: '' });
+    expect(state.tournament.holdback).toBeUndefined();
+    expect(payoutPool(state.tournament)).toBe(1000);
   });
 });
 
