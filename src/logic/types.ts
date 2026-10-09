@@ -21,6 +21,13 @@ export interface Tournament {
   tables: Table[];
   players: Player[];
   eliminationOrder: string[]; // player ids, first out first
+  /** Agreed amounts for the players still in when they chopped. Setting it ends the tournament. */
+  deal?: DealShare[];
+}
+
+export interface DealShare {
+  playerId: string;
+  amount: number; // whole dollars
 }
 
 export interface Table {
@@ -35,6 +42,14 @@ export interface Player {
   seat: Seat | null; // null = unseated or eliminated
   charges: Charge[];
   payments: Payment[];
+  /** Prize money already handed to this player. */
+  prizePaid?: PrizePayment[];
+}
+
+export interface PrizePayment {
+  id: string;
+  amount: number; // whole dollars, > 0
+  method: 'cash' | 'interac';
 }
 
 export interface Charge {

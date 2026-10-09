@@ -1,5 +1,5 @@
 import { MAX_SEATS, MIN_SEATS } from './logic';
-import type { AppState, Charge, Payment, Player, Table, Tournament } from './types';
+import type { AppState, Charge, DealShare, Payment, Player, PrizePayment, Table, Tournament } from './types';
 
 export const STORAGE_KEY = 'poker-tournament-manager:v1';
 
@@ -32,6 +32,18 @@ function parsePayment(v: unknown): Payment | null {
   return { id: v.id, amount: v.amount, method: v.method };
 }
 
+function parsePrizePayment(v: unknown): PrizePayment | null {
+  if (!isObject(v) || typeof v.id !== 'string') return null;
+  if (v.method !== 'cash' && v.method !== 'interac') return null;
+  if (!isInt(v.amount) || v.amount <= 0) return null;
+  return { id: v.id, amount: v.amount, method: v.method };
+}
+
+function parseDealShare(v: unknown): DealShare | null {
+  if (!isObject(v) || typeof v.playerId !== 'string' || !isInt(v.amount) || v.amount < 0) return null;
+  return { playerId: v.playerId, amount: v.amount };
+}
+
 function parseTable(v: unknown): Table | null {
   if (!isObject(v) || typeof v.id !== 'string' || !isInt(v.number) || typeof v.open !== 'boolean') return null;
   return { id: v.id, number: v.number, open: v.open };
@@ -59,7 +71,10 @@ function parsePlayer(v: unknown): Player | null {
   const payments = parseList(v.payments, parsePayment);
   if (!charges || !payments) return null;
   if (charges.filter((c) => c.kind === 'buyin').length !== 1) return null;
-  return { id: v.id, name: v.name, seat, charges, payments };
+  // Optional: saves made before prize payments existed do not have it.
+  const prizePaid = v.prizePaid === undefined ? undefined : parseList(v.prizePaid, parsePrizePayment);
+  if (prizePaid === null) return null;
+  return { id: v.id, name: v.name, seat, charges, payments, ...(prizePaid ? { prizePaid } : {}) };
 }
 
 export function parseTournament(v: unknown): Tournament | null {
@@ -82,6 +97,8 @@ export function parseTournament(v: unknown): Tournament | null {
   const eliminationOrder = v.eliminationOrder as string[];
   if (playerIds.size !== players.length || tableIds.size !== tables.length) return null;
   if (!eliminationOrder.every((id) => playerIds.has(id)) || new Set(eliminationOrder).size !== eliminationOrder.length) return null;
+  const deal = v.deal === undefined ? undefined : parseList(v.deal, parseDealShare);
+  if (deal === null || (deal && !deal.every((d) => playerIds.has(d.playerId)))) return null;
   const seatKeys = new Set<string>();
   for (const p of players) {
     if (!p.seat) continue;
@@ -104,6 +121,7 @@ export function parseTournament(v: unknown): Tournament | null {
     tables,
     players,
     eliminationOrder,
+    ...(deal ? { deal } : {}),
   };
 }
 

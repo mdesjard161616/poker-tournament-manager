@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { collected, money, outstanding, owedFromPrizes, playerOwes, playerPaid, playerTotal, prizePool, rebuyCount } from '../logic/logic';
+import { cashBox, collected, money, outstanding, owedFromPrizes, playerOwes, playerPaid, playerTotal, prizePool, rebuyCount } from '../logic/logic';
 import type { Player, Tournament } from '../logic/types';
 import { dispatch } from '../store';
 
@@ -51,6 +51,7 @@ export function MoneyScreen({ t, openDetail }: { t: Tournament; openDetail: (id:
   const pool = prizePool(t);
   const got = collected(t);
   const fromPrizes = owedFromPrizes(t);
+  const box = cashBox(t);
   const sum = (fn: (p: Player) => number) => rows.reduce((a, p) => a + fn(p), 0);
 
   return (
@@ -76,6 +77,15 @@ export function MoneyScreen({ t, openDetail }: { t: Tournament; openDetail: (id:
               {money(fromPrizes)} comes off prizes · {money(outstanding(t) - fromPrizes)} to collect
             </small>
           )}
+        </div>
+        <div className="stat">
+          <span>Cash box</span>
+          <b>{money(box.inBox)}</b>
+          <small>
+            {box.cashOut > 0 && `${money(box.cashIn)} in − ${money(box.cashOut)} prizes paid · `}
+            {box.leftToPay > 0 ? `prizes left to pay ${money(box.leftToPay)}` : t.status === 'finished' ? 'all prizes paid' : 'cash collected so far'}
+            {box.interacOut > 0 && ` · ${money(box.interacOut)} of prizes sent by Interac`}
+          </small>
         </div>
       </div>
 

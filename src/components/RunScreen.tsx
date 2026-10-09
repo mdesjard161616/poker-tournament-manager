@@ -173,6 +173,21 @@ export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, o
         </div>
       )}
 
+      {tableCounts(t).length > 1 && (
+        <div className="jump">
+          {tableCounts(t).map((c) => (
+            <button
+              key={c.tableId}
+              className="btn small"
+              aria-label={`Go to Table ${c.number}`}
+              onClick={() => document.getElementById(`table-${c.number}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
+              T{c.number} <span>{c.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {(tray.length > 0 || selected) && (
         <div className="tray">
           <b>{tray.length > 0 ? `Unseated (${tray.length})` : 'Moving'}</b>

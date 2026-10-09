@@ -1,5 +1,5 @@
 import { newId, randomInt, shuffle } from './rng';
-import type { Player, Seat, Table, Tournament } from './types';
+import type { DealShare, Player, Seat, Table, Tournament } from './types';
 
 export const MIN_TABLES = 1;
 export const MAX_TABLES = 8;
@@ -265,18 +265,54 @@ export function payoutsAreFinal(t: Tournament): boolean {
 export function finishingPlace(t: Tournament, playerId: string): number | null {
   const index = t.eliminationOrder.indexOf(playerId);
   if (index >= 0) return t.players.length - (index + 1) + 1;
-  if (t.status === 'finished') return 1;
+  // After a deal several players are still in, and none of them has a place.
+  if (t.status === 'finished' && !t.deal) return 1;
   return null;
 }
 
 // ---------- settling prizes ----------
 
-/** Prize for the player's finishing place; 0 while still in or outside the paid places. */
+function placePayouts(t: Tournament): number[] {
+  return computePayouts(prizePool(t), effectivePayoutPercents(t), t.payoutRounding);
+}
+
+/** Deal amount, or the prize for the finishing place; 0 while still in or outside the paid places. */
 export function prizeFor(t: Tournament, playerId: string): number {
+  const share = t.deal?.find((d) => d.playerId === playerId);
+  if (share) return share.amount;
   const place = finishingPlace(t, playerId);
   if (place === null) return 0;
-  const payouts = computePayouts(prizePool(t), effectivePayoutPercents(t), t.payoutRounding);
-  return payouts[place - 1] ?? 0;
+  return placePayouts(t)[place - 1] ?? 0;
+}
+
+/** What the players still in can share in a deal: the pool less the prizes already won by players who are out. */
+export function dealPool(t: Tournament): number {
+  const payouts = placePayouts(t);
+  const won = t.eliminationOrder.reduce((sum, id) => sum + (payouts[finishingPlace(t, id)! - 1] ?? 0), 0);
+  return prizePool(t) - won;
+}
+
+export function dealError(t: Tournament, shares: DealShare[]): string | null {
+  const active = activePlayers(t);
+  if (t.status !== 'running' || active.length < 2) return 'A deal needs at least 2 players still in.';
+  const ids = new Set(shares.map((d) => d.playerId));
+  if (ids.size !== shares.length || shares.length !== active.length || !active.every((p) => ids.has(p.id))) {
+    return 'Enter an amount for every player still in.';
+  }
+  if (shares.some((d) => !Number.isInteger(d.amount) || d.amount < 0)) return 'Amounts must be whole dollars, 0 or more.';
+  const total = shares.reduce((sum, d) => sum + d.amount, 0);
+  const pool = dealPool(t);
+  if (total !== pool) return `Amounts add up to ${money(total)}; there is ${money(pool)} to share.`;
+  return null;
+}
+
+/** An even split of the deal pool; the first players get the odd dollars. */
+export function evenDeal(t: Tournament): DealShare[] {
+  const active = activePlayers(t);
+  const pool = dealPool(t);
+  const base = Math.floor(pool / active.length);
+  const extra = pool - base * active.length;
+  return active.map((p, i) => ({ playerId: p.id, amount: base + (i < extra ? 1 : 0) }));
 }
 
 export interface Settlement {
@@ -285,11 +321,13 @@ export interface Settlement {
   owes: number;
   /** Already recorded as paid out of this player's prize. */
   settled: number;
-  /** What the host hands over: the prize less what was settled and what is still owed, never below 0. */
+  /** Prize money already handed over. */
+  paidOut: number;
+  /** What the host still has to hand over: the prize less what was settled, paid out and is still owed. */
   toPay: number;
   /** What the player still owes once the whole prize has been kept back. */
   stillOwes: number;
-  /** Settled amounts the current prize no longer covers, for example after a reinstatement changed the places. */
+  /** Settled and paid amounts the current prize no longer covers, for example after the places changed. */
   overSettled: number;
 }
 
@@ -297,13 +335,26 @@ export function settledFromPrize(p: Player): number {
   return p.payments.reduce((sum, pay) => sum + (pay.method === 'prize' ? pay.amount : 0), 0);
 }
 
+export function prizePaidOut(p: Player): number {
+  return (p.prizePaid ?? []).reduce((sum, pay) => sum + pay.amount, 0);
+}
+
 export function settlement(t: Tournament, p: Player): Settlement {
   const prize = prizeFor(t, p.id);
   const owes = Math.max(0, playerOwes(p));
   const settled = settledFromPrize(p);
-  const remaining = Math.max(0, prize - settled);
+  const paidOut = prizePaidOut(p);
+  const remaining = Math.max(0, prize - settled - paidOut);
   const deducted = Math.min(remaining, owes);
-  return { prize, owes, settled, toPay: remaining - deducted, stillOwes: owes - deducted, overSettled: Math.max(0, settled - prize) };
+  return {
+    prize,
+    owes,
+    settled,
+    paidOut,
+    toPay: remaining - deducted,
+    stillOwes: owes - deducted,
+    overSettled: Math.max(0, settled + paidOut - prize),
+  };
 }
 
 /** What "Settle from prize" would record: the debt, capped at what is left of the prize. */
@@ -315,6 +366,32 @@ export function settleAmount(t: Tournament, p: Player): number {
 /** The part of Outstanding that will be kept back from prizes instead of being collected. */
 export function owedFromPrizes(t: Tournament): number {
   return t.players.reduce((sum, p) => sum + settleAmount(t, p), 0);
+}
+
+export interface CashBox {
+  cashIn: number;
+  /** Prizes already paid in cash. */
+  cashOut: number;
+  /** What should be in the box right now. */
+  inBox: number;
+  /** Prizes not handed over yet, by any method. */
+  leftToPay: number;
+  interacOut: number;
+}
+
+export function cashBox(t: Tournament): CashBox {
+  let cashOut = 0;
+  let interacOut = 0;
+  let leftToPay = 0;
+  for (const p of t.players) {
+    for (const pay of p.prizePaid ?? []) {
+      if (pay.method === 'cash') cashOut += pay.amount;
+      else interacOut += pay.amount;
+    }
+    leftToPay += settlement(t, p).toPay;
+  }
+  const cashIn = collected(t).cash;
+  return { cashIn, cashOut, inBox: cashIn - cashOut, leftToPay, interacOut };
 }
 
 // ---------- table alerts ----------

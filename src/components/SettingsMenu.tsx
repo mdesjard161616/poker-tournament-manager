@@ -106,7 +106,7 @@ export function SettingsMenu({ state, onClose }: { state: AppState; onClose: () 
         )}
       </div>
       <p className="hint">
-        Version {VERSION}, built {__BUILD__}. To update, close the app completely and open it again while online.
+        Version {VERSION}, built {__BUILD__}. When a newer version is out, a banner at the top offers to update.
       </p>
     </Modal>
   );

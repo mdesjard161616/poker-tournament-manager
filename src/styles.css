@@ -362,6 +362,12 @@ textarea.input.entry {
   border-color: var(--blue);
 }
 
+.banner.update {
+  background: #5a4313;
+  border-color: var(--accent);
+  margin: 8px 12px 0;
+}
+
 .banner.done {
   background: #1d4d36;
   border-color: var(--green);
@@ -754,6 +760,24 @@ textarea.input.entry {
 
 /* ---------- narrow screens ---------- */
 
+.ok-text {
+  color: #8fe0b4;
+}
+
+.pay-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pay-buttons small {
+  white-space: nowrap;
+}
+
+.jump {
+  display: none;
+}
+
 @media (max-width: 1000px) {
   .setup,
   .results {
@@ -835,6 +859,48 @@ textarea.input.entry {
 
   .tables {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* One button per table, always in reach. */
+  .jump {
+    display: flex;
+    gap: 4px;
+    position: sticky;
+    top: calc(56px + env(safe-area-inset-top));
+    z-index: 4;
+    background: var(--bg);
+    padding: 4px 0;
+    margin-bottom: 4px;
+  }
+
+  .jump .btn {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .jump .btn span {
+    color: var(--accent);
+  }
+
+  .tray {
+    top: calc(108px + env(safe-area-inset-top));
+  }
+
+  .table-card {
+    scroll-margin-top: calc(112px + env(safe-area-inset-top));
+  }
+
+  .stat-row {
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    flex: 1 1 40%;
+  }
+
+  .banner.update {
+    margin: 8px 8px 0;
   }
 
   /* Empty seats shrink until a player is being placed, so five tables stay a short scroll. */

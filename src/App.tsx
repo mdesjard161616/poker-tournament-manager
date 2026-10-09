@@ -20,6 +20,35 @@ const screens: { key: Screen; label: string }[] = [
   { key: 'results', label: 'Results' },
 ];
 
+/** The newer version number once the server has one, checked at start, on return to the app and every 10 minutes. */
+function useNewVersion(): string | null {
+  const [latest, setLatest] = useState<string | null>(null);
+  useEffect(() => {
+    if (!import.meta.env.PROD || location.protocol === 'file:') return;
+    let stopped = false;
+    const check = () => {
+      fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((info) => {
+          if (!stopped && info && typeof info.version === 'string' && info.version !== VERSION) setLatest(info.version);
+        })
+        .catch(() => undefined); // offline: try again later
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+    check();
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = window.setInterval(check, 10 * 60 * 1000);
+    return () => {
+      stopped = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(timer);
+    };
+  }, []);
+  return latest;
+}
+
 function homeScreen(status: Status): Screen {
   return status === 'setup' ? 'setup' : status === 'finished' ? 'results' : 'run';
 }
@@ -55,6 +84,7 @@ export default function App() {
 
   const selected = selectedId && activePlayers(t).some((p) => p.id === selectedId) ? selectedId : null;
   const saveError = getSaveError();
+  const newVersion = useNewVersion();
 
   return (
     <div className="app">
@@ -75,6 +105,14 @@ export default function App() {
         </button>
       </nav>
       {saveError && <div className="banner break">{saveError}</div>}
+      {newVersion && (
+        <div className="banner update">
+          <span className="grow">Version {newVersion} is available. Your tournament is saved and stays as it is.</span>
+          <button className="btn small primary" onClick={() => location.reload()}>
+            Update now
+          </button>
+        </div>
+      )}
 
       <main>
         {screen === 'setup' && (

@@ -13,6 +13,8 @@ self.addEventListener('activate', (event) => {
 // Network first so a new version is picked up when online; the cached copy when not.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // The update check must always see the server's answer, never a cached one.
+  if (new URL(event.request.url).pathname.endsWith('/version.json')) return;
   event.respondWith(
     // 'no-cache' asks the server every time, so a new version is not hidden by the browser's own cache.
     (event.request.mode === 'navigate' ? fetch(event.request.url, { cache: 'no-cache' }) : fetch(event.request))

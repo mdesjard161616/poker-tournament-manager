@@ -21,11 +21,13 @@ import {
   randomizeAll,
   randomizeUnseated,
   settleAmount,
+  settlement,
+  dealError,
   startBlockers,
   suggestedTableCount,
 } from './logic';
 import { newId, shuffle } from './rng';
-import type { AppState, Player, Seat, Tournament } from './types';
+import type { AppState, DealShare, Player, Seat, Tournament } from './types';
 
 export const UNDO_LIMIT = 200;
 
@@ -52,6 +54,10 @@ export type Action =
   | { type: 'rebuy'; playerId: string; method: 'cash' | 'interac' | 'owes' }
   | { type: 'markPaid'; playerId: string }
   | { type: 'settleFromPrize'; playerId: string }
+  | { type: 'payPrize'; playerId: string; method: 'cash' | 'interac' }
+  | { type: 'deletePrizePayment'; playerId: string; paymentId: string }
+  | { type: 'setDeal'; shares: DealShare[] }
+  | { type: 'cancelDeal' }
   | { type: 'addPayment'; playerId: string; amount: number; method: 'cash' | 'interac' }
   | { type: 'deletePayment'; playerId: string; paymentId: string }
   | { type: 'setPaymentMethod'; playerId: string; paymentId: string; method: 'cash' | 'interac' }
@@ -276,6 +282,36 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
         return { ...p, payments: [...p.payments, { id: newId('y'), amount, method: 'prize' }] };
       });
 
+    case 'payPrize':
+      // Handing over the prize settles the debt that was kept back from it.
+      return mapPlayer(t, action.playerId, (p) => {
+        const s = settlement(t, p);
+        if (s.toPay <= 0) return p;
+        const kept = settleAmount(t, p);
+        return {
+          ...p,
+          payments: kept > 0 ? [...p.payments, { id: newId('y'), amount: kept, method: 'prize' }] : p.payments,
+          prizePaid: [...(p.prizePaid ?? []), { id: newId('z'), amount: s.toPay, method: action.method }],
+        };
+      });
+
+    case 'deletePrizePayment':
+      return mapPlayer(t, action.playerId, (p) =>
+        p.prizePaid?.some((pay) => pay.id === action.paymentId)
+          ? { ...p, prizePaid: p.prizePaid.filter((pay) => pay.id !== action.paymentId) }
+          : p,
+      );
+
+    case 'setDeal':
+      if (dealError(t, action.shares)) return t;
+      return { ...t, deal: action.shares.map((d) => ({ playerId: d.playerId, amount: d.amount })) };
+
+    case 'cancelDeal': {
+      if (!t.deal) return t;
+      const { deal: _deal, ...rest } = t;
+      return rest;
+    }
+
     case 'addPayment':
       return mapPlayer(t, action.playerId, (p) => {
         if (paymentError(p, action.amount)) return p;
@@ -308,7 +344,7 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
     }
 
     case 'reinstate':
-      if (setup || !t.eliminationOrder.includes(action.playerId)) return t;
+      if (setup || t.deal || !t.eliminationOrder.includes(action.playerId)) return t;
       return { ...t, eliminationOrder: t.eliminationOrder.filter((id) => id !== action.playerId) };
 
     case 'breakTable': {
@@ -353,6 +389,7 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
 /** Finished as soon as one active player remains; running again if a reinstatement brings one back. */
 function syncStatus(t: Tournament): Tournament {
   if (t.status === 'setup') return t;
+  if (t.deal) return t.status === 'running' ? { ...t, status: 'finished' } : t;
   const active = activePlayers(t).length;
   if (t.status === 'running' && active <= 1) return { ...t, status: 'finished' };
   if (t.status === 'finished' && active > 1) return { ...t, status: 'running' };

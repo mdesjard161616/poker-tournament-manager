@@ -140,6 +140,21 @@ export function PlayerDetail(props: { t: Tournament; playerId: string; onClose: 
         ))}
       </div>
 
+      {(p.prizePaid?.length ?? 0) > 0 && (
+        <div className="panel">
+          <h3>Prize paid out</h3>
+          {p.prizePaid!.map((pay) => (
+            <div className="line" key={pay.id}>
+              <span>{pay.method === 'cash' ? 'Cash' : 'Interac'}</span>
+              <b>{money(pay.amount)}</b>
+              <button className="btn small danger" onClick={() => dispatch({ type: 'deletePrizePayment', playerId: p.id, paymentId: pay.id })}>
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="panel">
         <h3>Name</h3>
         <div className="row wrap">
@@ -147,7 +162,7 @@ export function PlayerDetail(props: { t: Tournament; playerId: string; onClose: 
           <button className="btn" onClick={rename} disabled={name.trim() === p.name}>
             Rename
           </button>
-          {t.eliminationOrder.includes(p.id) && (
+          {!t.deal && t.eliminationOrder.includes(p.id) && (
             <button
               className="btn"
               onClick={() => {

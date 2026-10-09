@@ -18,7 +18,7 @@ export function TableGrid({ t, selectedId, highlight, onSeat, onMarkPaid, tableA
   return (
     <div className="tables">
       {tableCounts(t).map((table) => (
-        <section className="table-card" key={table.tableId}>
+        <section className="table-card" id={`table-${table.number}`} key={table.tableId}>
           <header>
             <strong>Table {table.number}</strong>
             <span className="count">

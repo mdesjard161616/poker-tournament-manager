@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   balancePlan,
+  cashBox,
+  dealError,
+  dealPool,
+  evenDeal,
   collected,
   computeAlert,
   computePayouts,
@@ -377,10 +381,10 @@ describe('settling prizes', () => {
     expect(prizePool(t)).toBe(440);
     const byId = (id: string) => t.players.find((p) => p.id === id)!;
     // 50 / 30 / 20 of 440 rounded to 5: 220 / 130 / 90
-    expect(settlement(t, byId(ids[0]))).toEqual({ prize: 220, owes: 40, settled: 0, toPay: 180, stillOwes: 0, overSettled: 0 });
-    expect(settlement(t, byId(ids[1]))).toEqual({ prize: 130, owes: 80, settled: 0, toPay: 50, stillOwes: 0, overSettled: 0 });
-    expect(settlement(t, byId(ids[2]))).toEqual({ prize: 90, owes: 0, settled: 0, toPay: 90, stillOwes: 0, overSettled: 0 });
-    expect(settlement(t, byId(ids[5]))).toEqual({ prize: 0, owes: 0, settled: 0, toPay: 0, stillOwes: 0, overSettled: 0 });
+    expect(settlement(t, byId(ids[0]))).toEqual({ prize: 220, owes: 40, settled: 0, paidOut: 0, toPay: 180, stillOwes: 0, overSettled: 0 });
+    expect(settlement(t, byId(ids[1]))).toEqual({ prize: 130, owes: 80, settled: 0, paidOut: 0, toPay: 50, stillOwes: 0, overSettled: 0 });
+    expect(settlement(t, byId(ids[2]))).toEqual({ prize: 90, owes: 0, settled: 0, paidOut: 0, toPay: 90, stillOwes: 0, overSettled: 0 });
+    expect(settlement(t, byId(ids[5]))).toEqual({ prize: 0, owes: 0, settled: 0, paidOut: 0, toPay: 0, stillOwes: 0, overSettled: 0 });
     expect(owedFromPrizes(t)).toBe(120);
     expect(outstanding(t)).toBe(120);
 
@@ -388,8 +392,8 @@ describe('settling prizes', () => {
     const settledState = run(state, { type: 'settleFromPrize', playerId: ids[0] }, { type: 'settleFromPrize', playerId: ids[1] });
     const st = settledState.tournament;
     const after = (id: string) => st.players.find((p) => p.id === id)!;
-    expect(settlement(st, after(ids[0]))).toEqual({ prize: 220, owes: 0, settled: 40, toPay: 180, stillOwes: 0, overSettled: 0 });
-    expect(settlement(st, after(ids[1]))).toEqual({ prize: 130, owes: 0, settled: 80, toPay: 50, stillOwes: 0, overSettled: 0 });
+    expect(settlement(st, after(ids[0]))).toEqual({ prize: 220, owes: 0, settled: 40, paidOut: 0, toPay: 180, stillOwes: 0, overSettled: 0 });
+    expect(settlement(st, after(ids[1]))).toEqual({ prize: 130, owes: 0, settled: 80, paidOut: 0, toPay: 50, stillOwes: 0, overSettled: 0 });
     expect(playerOwes(after(ids[0]))).toBe(0);
     expect(outstanding(st)).toBe(0);
     expect(owedFromPrizes(st)).toBe(0);
@@ -408,11 +412,99 @@ describe('settling prizes', () => {
     for (const id of ids.slice(1).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
     const third = state.tournament.players.find((p) => p.id === ids[2])!;
     // Pool 520, 3rd gets 4% rounded to 5 = 20, and owes 160.
-    expect(settlement(state.tournament, third)).toEqual({ prize: 20, owes: 160, settled: 0, toPay: 0, stillOwes: 140, overSettled: 0 });
+    expect(settlement(state.tournament, third)).toEqual({ prize: 20, owes: 160, settled: 0, paidOut: 0, toPay: 0, stillOwes: 140, overSettled: 0 });
     // Settling keeps back the whole prize and leaves the rest owed.
     state = reduce(state, { type: 'settleFromPrize', playerId: ids[2] });
     const after = state.tournament.players.find((p) => p.id === ids[2])!;
-    expect(settlement(state.tournament, after)).toEqual({ prize: 20, owes: 140, settled: 20, toPay: 0, stillOwes: 140, overSettled: 0 });
+    expect(settlement(state.tournament, after)).toEqual({ prize: 20, owes: 140, settled: 20, paidOut: 0, toPay: 0, stillOwes: 140, overSettled: 0 });
+  });
+});
+
+describe('paying prizes', () => {
+  function finished(): { state: AppState; ids: string[] } {
+    let state = run(setup(10, 2), { type: 'randomizeAll' }, { type: 'start' });
+    const ids = state.tournament.players.map((p) => p.id);
+    for (const id of ids.slice(1)) state = reduce(state, { type: 'markPaid', playerId: id });
+    for (const id of ids.slice(1).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
+    return { state, ids };
+  }
+  const player = (state: AppState, id: string) => state.tournament.players.find((p) => p.id === id)!;
+
+  it('tracks the cash box as prizes are handed over', () => {
+    let { state, ids } = finished();
+    // Pool 400: 200 / 120 / 80. Nine paid cash (360); the winner still owes 40.
+    expect(cashBox(state.tournament)).toEqual({ cashIn: 360, cashOut: 0, inBox: 360, leftToPay: 360, interacOut: 0 });
+    state = reduce(state, { type: 'payPrize', playerId: ids[1], method: 'cash' });
+    state = reduce(state, { type: 'payPrize', playerId: ids[2], method: 'interac' });
+    expect(cashBox(state.tournament)).toEqual({ cashIn: 360, cashOut: 120, inBox: 240, leftToPay: 160, interacOut: 80 });
+    expect(settlement(state.tournament, player(state, ids[1]))).toMatchObject({ prize: 120, paidOut: 120, toPay: 0 });
+    // Nothing left to pay: a second press does nothing.
+    expect(reduce(state, { type: 'payPrize', playerId: ids[1], method: 'cash' })).toBe(state);
+    expect(reduce(state, { type: 'payPrize', playerId: ids[5], method: 'cash' })).toBe(state);
+  });
+
+  it('paying a winner who owes hands over the net amount and settles the debt', () => {
+    let { state, ids } = finished();
+    state = reduce(state, { type: 'payPrize', playerId: ids[0], method: 'cash' });
+    const winner = player(state, ids[0]);
+    expect(winner.prizePaid).toMatchObject([{ amount: 160, method: 'cash' }]);
+    expect(playerOwes(winner)).toBe(0);
+    expect(settlement(state.tournament, winner)).toEqual({ prize: 200, owes: 0, settled: 40, paidOut: 160, toPay: 0, stillOwes: 0, overSettled: 0 });
+    expect(outstanding(state.tournament)).toBe(0);
+    // Deleting the prize payment puts the amount back on the list to pay.
+    state = reduce(state, { type: 'deletePrizePayment', playerId: ids[0], paymentId: winner.prizePaid![0].id });
+    expect(settlement(state.tournament, player(state, ids[0])).toPay).toBe(160);
+  });
+});
+
+describe('final-table deal', () => {
+  function threeLeft(): { state: AppState; ids: string[] } {
+    let state = run(setup(20, 3), { type: 'randomizeAll' }, { type: 'start' });
+    const ids = state.tournament.players.map((p) => p.id);
+    for (const id of ids.slice(3).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
+    return { state, ids };
+  }
+
+  it('shares what the players who are out have not already won', () => {
+    const { state, ids } = threeLeft();
+    const t = state.tournament;
+    // Pool 800 at 45 / 27 / 18 / 10: 4th place already won 80.
+    expect(dealPool(t)).toBe(720);
+    expect(evenDeal(t).map((d) => d.amount)).toEqual([240, 240, 240]);
+    const shares = [300, 220, 200].map((amount, i) => ({ playerId: ids[i], amount }));
+    expect(dealError(t, shares)).toBeNull();
+    expect(dealError(t, [{ ...shares[0], amount: 310 }, shares[1], shares[2]])).toContain('$730');
+    expect(dealError(t, shares.slice(0, 2))).toContain('every player');
+  });
+
+  it('ends the tournament with the agreed amounts as prizes', () => {
+    const { state: before, ids } = threeLeft();
+    const shares = [300, 220, 200].map((amount, i) => ({ playerId: ids[i], amount }));
+    let state = reduce(before, { type: 'setDeal', shares });
+    const t = state.tournament;
+    expect(t.status).toBe('finished');
+    const byId = (id: string) => t.players.find((p) => p.id === id)!;
+    expect(ids.slice(0, 3).map((id) => settlement(t, byId(id)).prize)).toEqual([300, 220, 200]);
+    expect(finishingPlace(t, ids[0])).toBeNull();
+    expect(settlement(t, byId(ids[3])).prize).toBe(80);
+    expect(finishingPlace(t, ids[3])).toBe(4);
+    expect(t.players.reduce((sum, p) => sum + settlement(t, p).prize, 0)).toBe(prizePool(t));
+    // No reinstating under a deal; cancelling it resumes play.
+    expect(reduce(state, { type: 'reinstate', playerId: ids[5] })).toBe(state);
+    state = reduce(state, { type: 'cancelDeal' });
+    expect(state.tournament.status).toBe('running');
+    expect(state.tournament.deal).toBeUndefined();
+    expect(run(state, { type: 'undo' }, { type: 'undo' }).tournament).toEqual(before.tournament);
+  });
+
+  it('survives a reload', () => {
+    const { state: before, ids } = threeLeft();
+    let state = reduce(before, { type: 'setDeal', shares: evenDeal(before.tournament) });
+    state = reduce(state, { type: 'payPrize', playerId: ids[0], method: 'interac' });
+    const restored = parseAppState(JSON.parse(serializeState(state)))!;
+    expect(restored.tournament).toEqual(state.tournament);
+    expect(restored.tournament.deal).toHaveLength(3);
+    expect(restored.tournament.players[0].prizePaid).toHaveLength(1);
   });
 });
 
