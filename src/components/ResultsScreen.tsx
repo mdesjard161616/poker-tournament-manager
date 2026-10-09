@@ -1,10 +1,9 @@
-import { activePlayers, computePayouts, effectivePayoutPercents, finishingPlace, money, ordinal, playerOwes, prizePool } from '../logic/logic';
+import { activePlayers, finishingPlace, money, ordinal, playerOwes, settlement } from '../logic/logic';
 import type { Tournament } from '../logic/types';
 import { dispatch } from '../store';
 import { PayoutEditor } from './PayoutEditor';
 
 export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; onReinstate: (id: string) => void; openDetail: (id: string) => void }) {
-  const payouts = computePayouts(prizePool(t), effectivePayoutPercents(t), t.payoutRounding);
   const active = activePlayers(t);
   const placed = t.players
     .map((p) => ({ p, place: finishingPlace(t, p.id) }))
@@ -26,7 +25,7 @@ export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; o
             <tr>
               <th>Place</th>
               <th>Name</th>
-              <th className="right">Payout</th>
+              <th className="right">Prize</th>
               <th className="right">Owes</th>
               <th />
             </tr>
@@ -34,12 +33,26 @@ export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; o
           <tbody>
             {placed.map(({ p, place }) => {
               const owes = playerOwes(p);
+              const s = settlement(t, p);
               const out = t.eliminationOrder.includes(p.id);
               return (
                 <tr key={p.id} className={`clickable${place === 1 ? ' winner' : ''}`} onClick={() => openDetail(p.id)}>
                   <td>{ordinal(place)}</td>
                   <td>{p.name}</td>
-                  <td className="right">{place <= payouts.length ? money(payouts[place - 1]) : ''}</td>
+                  <td className="right">
+                    {s.prize > 0 &&
+                      (s.owes > 0 ? (
+                        <span className="net-prize">
+                          <b>Pay {money(s.toPay)}</b>
+                          <small>
+                            prize {money(s.prize)} − owes {money(s.owes)}
+                          </small>
+                          {s.stillOwes > 0 && <small className="bad-text">still owes {money(s.stillOwes)}</small>}
+                        </span>
+                      ) : (
+                        money(s.prize)
+                      ))}
+                  </td>
                   <td className="right">
                     {owes > 0 ? (
                       <button
@@ -81,6 +94,13 @@ export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; o
             )}
           </tbody>
         </table>
+        {placed.some(({ p }) => settlement(t, p).prize > 0 && playerOwes(p) > 0) && (
+          <p className="hint">
+            "Pay" is the prize less what that player still owes. Hand over that amount and their debt is settled; if they pay you instead,
+            tap their Owes badge and the full prize shows again.
+          </p>
+        )}
+        <p className="hint">Tap a player for their payments, or to reinstate them.</p>
       </div>
     </div>
   );

@@ -14,7 +14,8 @@ import type { PaymentMethod, Tournament } from '../logic/types';
 import { dispatch } from '../store';
 import { Modal } from './common';
 
-export function PlayerDetail({ t, playerId, onClose }: { t: Tournament; playerId: string; onClose: () => void }) {
+export function PlayerDetail(props: { t: Tournament; playerId: string; onClose: () => void; onReinstate: (id: string) => void }) {
+  const { t, playerId, onClose } = props;
   const p = t.players.find((x) => x.id === playerId);
   const owes = p ? playerOwes(p) : 0;
   const [amount, setAmount] = useState(String(owes));
@@ -139,11 +140,22 @@ export function PlayerDetail({ t, playerId, onClose }: { t: Tournament; playerId
 
       <div className="panel">
         <h3>Name</h3>
-        <div className="row">
+        <div className="row wrap">
           <input className="input grow" aria-label="Player name" value={name} onChange={(e) => setName(e.target.value)} />
           <button className="btn" onClick={rename} disabled={name.trim() === p.name}>
             Rename
           </button>
+          {t.eliminationOrder.includes(p.id) && (
+            <button
+              className="btn"
+              onClick={() => {
+                onClose();
+                props.onReinstate(p.id);
+              }}
+            >
+              Reinstate
+            </button>
+          )}
           {t.status === 'setup' && (
             <button
               className="btn danger"

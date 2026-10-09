@@ -45,6 +45,13 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [screen]);
 
+  // Back in the tray and already selected: the next tap on an open seat places them.
+  const reinstate = (id: string) => {
+    dispatch({ type: 'reinstate', playerId: id });
+    setSelectedId(id);
+    setScreen('run');
+  };
+
   const selected = selectedId && activePlayers(t).some((p) => p.id === selectedId) ? selectedId : null;
   const saveError = getSaveError();
 
@@ -93,17 +100,12 @@ export default function App() {
           <ResultsScreen
             t={t}
             openDetail={setDetailId}
-            onReinstate={(id) => {
-              // Back in the tray and already selected: the next tap on an open seat places them.
-              dispatch({ type: 'reinstate', playerId: id });
-              setSelectedId(id);
-              setScreen('run');
-            }}
+            onReinstate={reinstate}
           />
         )}
       </main>
 
-      {detailId && <PlayerDetail t={t} playerId={detailId} onClose={() => setDetailId(null)} />}
+      {detailId && <PlayerDetail t={t} playerId={detailId} onClose={() => setDetailId(null)} onReinstate={reinstate} />}
       {seatingList && <SeatingList t={t} onClose={() => setSeatingList(false)} />}
       {settings && <SettingsMenu state={state} onClose={() => setSettings(false)} />}
     </div>

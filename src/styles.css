@@ -898,7 +898,26 @@ textarea.input.entry {
     padding: 8px;
   }
 
-  .results .grid td .btn.small {
-    padding: 0 6px;
+  .results .grid th:last-child,
+  .results .grid td:last-child {
+    display: none; /* Reinstate is in the player's panel: tap the row */
   }
+}
+
+.net-prize {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+}
+
+.net-prize small {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.net-prize small.bad-text {
+  color: #ffb4ae;
 }

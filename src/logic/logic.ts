@@ -273,6 +273,40 @@ export function finishingPlace(t: Tournament, playerId: string): number | null {
   return null;
 }
 
+// ---------- settling prizes ----------
+
+/** Prize for the player's finishing place; 0 while still in or outside the paid places. */
+export function prizeFor(t: Tournament, playerId: string): number {
+  const place = finishingPlace(t, playerId);
+  if (place === null) return 0;
+  const payouts = computePayouts(prizePool(t), effectivePayoutPercents(t), t.payoutRounding);
+  return payouts[place - 1] ?? 0;
+}
+
+export interface Settlement {
+  prize: number;
+  owes: number;
+  /** What the host hands over: the prize less what the player still owes, never below 0. */
+  toPay: number;
+  /** What the player still owes once the whole prize has been kept back. */
+  stillOwes: number;
+}
+
+export function settlement(t: Tournament, p: Player): Settlement {
+  const prize = prizeFor(t, p.id);
+  const owes = Math.max(0, playerOwes(p));
+  const deducted = Math.min(prize, owes);
+  return { prize, owes, toPay: prize - deducted, stillOwes: owes - deducted };
+}
+
+/** The part of Outstanding that will be kept back from prizes instead of being collected. */
+export function owedFromPrizes(t: Tournament): number {
+  return t.players.reduce((sum, p) => {
+    const s = settlement(t, p);
+    return sum + (s.prize - s.toPay);
+  }, 0);
+}
+
 // ---------- table alerts ----------
 
 export interface BalanceMove {

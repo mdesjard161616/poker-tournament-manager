@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { collected, money, outstanding, playerOwes, playerPaid, playerTotal, prizePool, rebuyCount } from '../logic/logic';
+import { collected, money, outstanding, owedFromPrizes, playerOwes, playerPaid, playerTotal, prizePool, rebuyCount } from '../logic/logic';
 import type { Player, Tournament } from '../logic/types';
 import { dispatch } from '../store';
 
@@ -50,6 +50,7 @@ export function MoneyScreen({ t, openDetail }: { t: Tournament; openDetail: (id:
 
   const pool = prizePool(t);
   const got = collected(t);
+  const fromPrizes = owedFromPrizes(t);
   const sum = (fn: (p: Player) => number) => rows.reduce((a, p) => a + fn(p), 0);
 
   return (
@@ -69,6 +70,11 @@ export function MoneyScreen({ t, openDetail }: { t: Tournament; openDetail: (id:
         <div className={`stat${outstanding(t) > 0 ? ' bad' : ''}`}>
           <span>Outstanding</span>
           <b>{money(outstanding(t))}</b>
+          {fromPrizes > 0 && (
+            <small>
+              {money(fromPrizes)} comes off prizes · {money(outstanding(t) - fromPrizes)} to collect
+            </small>
+          )}
         </div>
       </div>
 

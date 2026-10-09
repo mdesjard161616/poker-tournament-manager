@@ -6,6 +6,8 @@ import {
   computePayouts,
   finishingPlace,
   outstanding,
+  owedFromPrizes,
+  settlement,
   paymentError,
   playerOwes,
   playerPaid,
@@ -359,6 +361,38 @@ describe('pool and payouts', () => {
         expect(computePayouts(pool, [40, 25, 16, 11, 8], u).reduce((a, b) => a + b, 0)).toBe(pool);
       }
     }
+  });
+});
+
+describe('settling prizes', () => {
+  it('takes what a prize winner still owes off the prize', () => {
+    let state = run(setup(10, 2), { type: 'randomizeAll' }, { type: 'start' });
+    const ids = state.tournament.players.map((p) => p.id);
+    // Everyone pays except the eventual winner (owes 40) and runner-up (owes 40 + an unpaid rebuy of 40).
+    for (const id of ids.slice(2)) state = reduce(state, { type: 'markPaid', playerId: id });
+    state = reduce(state, { type: 'rebuy', playerId: ids[1], method: 'owes' });
+    for (const id of ids.slice(1).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
+    const t = state.tournament;
+    expect(t.status).toBe('finished');
+    expect(prizePool(t)).toBe(440);
+    const byId = (id: string) => t.players.find((p) => p.id === id)!;
+    // 50 / 30 / 20 of 440 rounded to 5: 220 / 130 / 90
+    expect(settlement(t, byId(ids[0]))).toEqual({ prize: 220, owes: 40, toPay: 180, stillOwes: 0 });
+    expect(settlement(t, byId(ids[1]))).toEqual({ prize: 130, owes: 80, toPay: 50, stillOwes: 0 });
+    expect(settlement(t, byId(ids[2]))).toEqual({ prize: 90, owes: 0, toPay: 90, stillOwes: 0 });
+    expect(settlement(t, byId(ids[5]))).toEqual({ prize: 0, owes: 0, toPay: 0, stillOwes: 0 });
+    expect(owedFromPrizes(t)).toBe(120);
+    expect(outstanding(t)).toBe(120);
+  });
+
+  it('a prize smaller than the debt pays nothing and leaves the rest owed', () => {
+    let state = run(setup(10, 2), { type: 'randomizeAll' }, { type: 'start' }, { type: 'setPayoutPercents', percents: [90, 6, 4] });
+    const ids = state.tournament.players.map((p) => p.id);
+    for (let i = 0; i < 3; i++) state = reduce(state, { type: 'rebuy', playerId: ids[2], method: 'owes' });
+    for (const id of ids.slice(1).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
+    const third = state.tournament.players.find((p) => p.id === ids[2])!;
+    // Pool 520, 3rd gets 4% rounded to 5 = 20, and owes 160.
+    expect(settlement(state.tournament, third)).toEqual({ prize: 20, owes: 160, toPay: 0, stillOwes: 140 });
   });
 });
 
