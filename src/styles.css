@@ -915,9 +915,18 @@ textarea.input.entry {
   color: var(--muted);
   font-weight: 400;
   font-size: 12px;
-  white-space: nowrap;
+  text-align: right;
 }
 
 .net-prize small.bad-text {
   color: #ffb4ae;
+}
+
+.net-prize .btn {
+  margin: 4px 0;
+  padding: 0 8px;
+}
+
+.line span:first-child {
+  width: 84px;
 }

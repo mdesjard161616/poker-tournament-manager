@@ -377,12 +377,28 @@ describe('settling prizes', () => {
     expect(prizePool(t)).toBe(440);
     const byId = (id: string) => t.players.find((p) => p.id === id)!;
     // 50 / 30 / 20 of 440 rounded to 5: 220 / 130 / 90
-    expect(settlement(t, byId(ids[0]))).toEqual({ prize: 220, owes: 40, toPay: 180, stillOwes: 0 });
-    expect(settlement(t, byId(ids[1]))).toEqual({ prize: 130, owes: 80, toPay: 50, stillOwes: 0 });
-    expect(settlement(t, byId(ids[2]))).toEqual({ prize: 90, owes: 0, toPay: 90, stillOwes: 0 });
-    expect(settlement(t, byId(ids[5]))).toEqual({ prize: 0, owes: 0, toPay: 0, stillOwes: 0 });
+    expect(settlement(t, byId(ids[0]))).toEqual({ prize: 220, owes: 40, settled: 0, toPay: 180, stillOwes: 0, overSettled: 0 });
+    expect(settlement(t, byId(ids[1]))).toEqual({ prize: 130, owes: 80, settled: 0, toPay: 50, stillOwes: 0, overSettled: 0 });
+    expect(settlement(t, byId(ids[2]))).toEqual({ prize: 90, owes: 0, settled: 0, toPay: 90, stillOwes: 0, overSettled: 0 });
+    expect(settlement(t, byId(ids[5]))).toEqual({ prize: 0, owes: 0, settled: 0, toPay: 0, stillOwes: 0, overSettled: 0 });
     expect(owedFromPrizes(t)).toBe(120);
     expect(outstanding(t)).toBe(120);
+
+    // Settle from prize records it: the debt clears, the amount to hand over does not change.
+    const settledState = run(state, { type: 'settleFromPrize', playerId: ids[0] }, { type: 'settleFromPrize', playerId: ids[1] });
+    const st = settledState.tournament;
+    const after = (id: string) => st.players.find((p) => p.id === id)!;
+    expect(settlement(st, after(ids[0]))).toEqual({ prize: 220, owes: 0, settled: 40, toPay: 180, stillOwes: 0, overSettled: 0 });
+    expect(settlement(st, after(ids[1]))).toEqual({ prize: 130, owes: 0, settled: 80, toPay: 50, stillOwes: 0, overSettled: 0 });
+    expect(playerOwes(after(ids[0]))).toBe(0);
+    expect(outstanding(st)).toBe(0);
+    expect(owedFromPrizes(st)).toBe(0);
+    expect(collected(st)).toMatchObject({ prize: 120, cash: 320, interac: 0, total: 440 });
+    // Nothing left to settle, so a second press does nothing; Undo brings the debt back.
+    expect(reduce(settledState, { type: 'settleFromPrize', playerId: ids[0] })).toBe(settledState);
+    expect(reduce(settledState, { type: 'settleFromPrize', playerId: ids[5] })).toBe(settledState);
+    const undone = run(settledState, { type: 'undo' }, { type: 'undo' });
+    expect(outstanding(undone.tournament)).toBe(120);
   });
 
   it('a prize smaller than the debt pays nothing and leaves the rest owed', () => {
@@ -392,7 +408,11 @@ describe('settling prizes', () => {
     for (const id of ids.slice(1).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
     const third = state.tournament.players.find((p) => p.id === ids[2])!;
     // Pool 520, 3rd gets 4% rounded to 5 = 20, and owes 160.
-    expect(settlement(state.tournament, third)).toEqual({ prize: 20, owes: 160, toPay: 0, stillOwes: 140 });
+    expect(settlement(state.tournament, third)).toEqual({ prize: 20, owes: 160, settled: 0, toPay: 0, stillOwes: 140, overSettled: 0 });
+    // Settling keeps back the whole prize and leaves the rest owed.
+    state = reduce(state, { type: 'settleFromPrize', playerId: ids[2] });
+    const after = state.tournament.players.find((p) => p.id === ids[2])!;
+    expect(settlement(state.tournament, after)).toEqual({ prize: 20, owes: 140, settled: 20, toPay: 0, stillOwes: 140, overSettled: 0 });
   });
 });
 

@@ -27,7 +27,7 @@ function parseCharge(v: unknown): Charge | null {
 
 function parsePayment(v: unknown): Payment | null {
   if (!isObject(v) || typeof v.id !== 'string') return null;
-  if (v.method !== 'cash' && v.method !== 'interac') return null;
+  if (v.method !== 'cash' && v.method !== 'interac' && v.method !== 'prize') return null;
   if (!isInt(v.amount) || v.amount <= 0) return null;
   return { id: v.id, amount: v.amount, method: v.method };
 }

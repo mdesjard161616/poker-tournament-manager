@@ -1,4 +1,4 @@
-import { activePlayers, finishingPlace, money, ordinal, playerOwes, settlement } from '../logic/logic';
+import { activePlayers, finishingPlace, money, ordinal, playerOwes, settleAmount, settlement } from '../logic/logic';
 import type { Tournament } from '../logic/types';
 import { dispatch } from '../store';
 import { PayoutEditor } from './PayoutEditor';
@@ -34,20 +34,38 @@ export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; o
             {placed.map(({ p, place }) => {
               const owes = playerOwes(p);
               const s = settlement(t, p);
+              const pending = settleAmount(t, p);
               const out = t.eliminationOrder.includes(p.id);
               return (
                 <tr key={p.id} className={`clickable${place === 1 ? ' winner' : ''}`} onClick={() => openDetail(p.id)}>
                   <td>{ordinal(place)}</td>
                   <td>{p.name}</td>
                   <td className="right">
-                    {s.prize > 0 &&
-                      (s.owes > 0 ? (
+                    {(s.prize > 0 || s.settled > 0) &&
+                      (s.owes > 0 || s.settled > 0 ? (
                         <span className="net-prize">
                           <b>Pay {money(s.toPay)}</b>
                           <small>
-                            prize {money(s.prize)} − owes {money(s.owes)}
+                            prize {money(s.prize)}
+                            {s.settled > 0 && ` − ${money(s.settled)} settled`}
+                            {pending > 0 && (s.stillOwes > 0 ? ` − ${money(pending)} of ${money(s.owes)} owed` : ` − owes ${money(s.owes)}`)}
                           </small>
                           {s.stillOwes > 0 && <small className="bad-text">still owes {money(s.stillOwes)}</small>}
+                          {s.overSettled > 0 && (
+                            <small className="bad-text">{money(s.overSettled)} settled is more than the prize: fix in payments</small>
+                          )}
+                          {pending > 0 && (
+                            <button
+                              className="btn small"
+                              title="Record the debt as paid out of this prize"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                dispatch({ type: 'settleFromPrize', playerId: p.id });
+                              }}
+                            >
+                              Settle from prize
+                            </button>
+                          )}
                         </span>
                       ) : (
                         money(s.prize)
@@ -94,10 +112,10 @@ export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; o
             )}
           </tbody>
         </table>
-        {placed.some(({ p }) => settlement(t, p).prize > 0 && playerOwes(p) > 0) && (
+        {placed.some(({ p }) => settleAmount(t, p) > 0) && (
           <p className="hint">
-            "Pay" is the prize less what that player still owes. Hand over that amount and their debt is settled; if they pay you instead,
-            tap their Owes badge and the full prize shows again.
+            "Pay" is the prize less what that player still owes. "Settle from prize" records that debt as paid out of the prize, so they
+            drop off the list of people who owe. If they pay you instead, tap their Owes badge and the full prize shows again.
           </p>
         )}
         <p className="hint">Tap a player for their payments, or to reinstate them.</p>

@@ -20,11 +20,12 @@ import {
   playerPaid,
   randomizeAll,
   randomizeUnseated,
+  settleAmount,
   startBlockers,
   suggestedTableCount,
 } from './logic';
 import { newId, shuffle } from './rng';
-import type { AppState, PaymentMethod, Player, Seat, Tournament } from './types';
+import type { AppState, Player, Seat, Tournament } from './types';
 
 export const UNDO_LIMIT = 200;
 
@@ -48,11 +49,12 @@ export type Action =
   | { type: 'randomizeAll' }
   | { type: 'randomizeUnseated' }
   | { type: 'start' }
-  | { type: 'rebuy'; playerId: string; method: PaymentMethod | 'owes' }
+  | { type: 'rebuy'; playerId: string; method: 'cash' | 'interac' | 'owes' }
   | { type: 'markPaid'; playerId: string }
-  | { type: 'addPayment'; playerId: string; amount: number; method: PaymentMethod }
+  | { type: 'settleFromPrize'; playerId: string }
+  | { type: 'addPayment'; playerId: string; amount: number; method: 'cash' | 'interac' }
   | { type: 'deletePayment'; playerId: string; paymentId: string }
-  | { type: 'setPaymentMethod'; playerId: string; paymentId: string; method: PaymentMethod }
+  | { type: 'setPaymentMethod'; playerId: string; paymentId: string; method: 'cash' | 'interac' }
   | { type: 'deleteCharge'; playerId: string; chargeId: string }
   | { type: 'eliminate'; playerId: string }
   | { type: 'reinstate'; playerId: string }
@@ -267,6 +269,13 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
         return { ...p, payments: [...p.payments, { id: newId('y'), amount: owes, method: 'cash' }] };
       });
 
+    case 'settleFromPrize':
+      return mapPlayer(t, action.playerId, (p) => {
+        const amount = settleAmount(t, p);
+        if (amount <= 0) return p;
+        return { ...p, payments: [...p.payments, { id: newId('y'), amount, method: 'prize' }] };
+      });
+
     case 'addPayment':
       return mapPlayer(t, action.playerId, (p) => {
         if (paymentError(p, action.amount)) return p;
@@ -282,7 +291,7 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
 
     case 'setPaymentMethod':
       return mapPlayer(t, action.playerId, (p) =>
-        p.payments.some((pay) => pay.id === action.paymentId && pay.method !== action.method)
+        p.payments.some((pay) => pay.id === action.paymentId && pay.method !== action.method && pay.method !== 'prize')
           ? { ...p, payments: p.payments.map((pay) => (pay.id === action.paymentId ? { ...pay, method: action.method } : pay)) }
           : p,
       );

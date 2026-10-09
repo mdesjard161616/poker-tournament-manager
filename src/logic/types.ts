@@ -1,6 +1,7 @@
 export type Status = 'setup' | 'running' | 'finished';
 
-export type PaymentMethod = 'cash' | 'interac';
+// 'prize' is a debt kept back from the player's own prize: no money changes hands.
+export type PaymentMethod = 'cash' | 'interac' | 'prize';
 
 export interface Seat {
   tableId: string;

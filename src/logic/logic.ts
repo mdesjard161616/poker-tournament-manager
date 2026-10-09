@@ -213,16 +213,12 @@ export function prizePool(t: Tournament): number {
   return t.players.reduce((sum, p) => sum + playerTotal(p), 0);
 }
 
-export function collected(t: Tournament): { total: number; cash: number; interac: number } {
-  let cash = 0;
-  let interac = 0;
+export function collected(t: Tournament): { total: number; cash: number; interac: number; prize: number } {
+  const sums = { cash: 0, interac: 0, prize: 0 };
   for (const p of t.players) {
-    for (const pay of p.payments) {
-      if (pay.method === 'cash') cash += pay.amount;
-      else interac += pay.amount;
-    }
+    for (const pay of p.payments) sums[pay.method] += pay.amount;
   }
-  return { total: cash + interac, cash, interac };
+  return { total: sums.cash + sums.interac + sums.prize, ...sums };
 }
 
 export function outstanding(t: Tournament): number {
@@ -285,26 +281,40 @@ export function prizeFor(t: Tournament, playerId: string): number {
 
 export interface Settlement {
   prize: number;
+  /** What the player owes right now, after any payments including ones settled from the prize. */
   owes: number;
-  /** What the host hands over: the prize less what the player still owes, never below 0. */
+  /** Already recorded as paid out of this player's prize. */
+  settled: number;
+  /** What the host hands over: the prize less what was settled and what is still owed, never below 0. */
   toPay: number;
   /** What the player still owes once the whole prize has been kept back. */
   stillOwes: number;
+  /** Settled amounts the current prize no longer covers, for example after a reinstatement changed the places. */
+  overSettled: number;
+}
+
+export function settledFromPrize(p: Player): number {
+  return p.payments.reduce((sum, pay) => sum + (pay.method === 'prize' ? pay.amount : 0), 0);
 }
 
 export function settlement(t: Tournament, p: Player): Settlement {
   const prize = prizeFor(t, p.id);
   const owes = Math.max(0, playerOwes(p));
-  const deducted = Math.min(prize, owes);
-  return { prize, owes, toPay: prize - deducted, stillOwes: owes - deducted };
+  const settled = settledFromPrize(p);
+  const remaining = Math.max(0, prize - settled);
+  const deducted = Math.min(remaining, owes);
+  return { prize, owes, settled, toPay: remaining - deducted, stillOwes: owes - deducted, overSettled: Math.max(0, settled - prize) };
+}
+
+/** What "Settle from prize" would record: the debt, capped at what is left of the prize. */
+export function settleAmount(t: Tournament, p: Player): number {
+  const s = settlement(t, p);
+  return s.owes - s.stillOwes;
 }
 
 /** The part of Outstanding that will be kept back from prizes instead of being collected. */
 export function owedFromPrizes(t: Tournament): number {
-  return t.players.reduce((sum, p) => {
-    const s = settlement(t, p);
-    return sum + (s.prize - s.toPay);
-  }, 0);
+  return t.players.reduce((sum, p) => sum + settleAmount(t, p), 0);
 }
 
 // ---------- table alerts ----------

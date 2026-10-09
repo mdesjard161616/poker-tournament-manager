@@ -10,7 +10,7 @@ import {
   playerPaid,
   playerTotal,
 } from '../logic/logic';
-import type { PaymentMethod, Tournament } from '../logic/types';
+import type { Tournament } from '../logic/types';
 import { dispatch } from '../store';
 import { Modal } from './common';
 
@@ -26,7 +26,7 @@ export function PlayerDetail(props: { t: Tournament; playerId: string; onClose: 
   if (!p) return null;
   const place = finishingPlace(t, p.id);
 
-  const pay = (method: PaymentMethod) => {
+  const pay = (method: 'cash' | 'interac') => {
     const n = Number(amount);
     const problem = amount.trim() === '' ? 'Enter an amount.' : paymentError(p, n);
     setError(problem);
@@ -110,21 +110,23 @@ export function PlayerDetail(props: { t: Tournament; playerId: string; onClose: 
         {p.payments.length === 0 && <p className="hint">No payment recorded.</p>}
         {p.payments.map((pay) => (
           <div className="line" key={pay.id}>
-            <span>{pay.method === 'cash' ? 'Cash' : 'Interac'}</span>
+            <span>{pay.method === 'cash' ? 'Cash' : pay.method === 'interac' ? 'Interac' : 'From prize'}</span>
             <b>{money(pay.amount)}</b>
-            <button
-              className="btn small"
-              onClick={() =>
-                dispatch({
-                  type: 'setPaymentMethod',
-                  playerId: p.id,
-                  paymentId: pay.id,
-                  method: pay.method === 'cash' ? 'interac' : 'cash',
-                })
-              }
-            >
-              Change to {pay.method === 'cash' ? 'Interac' : 'cash'}
-            </button>
+            {pay.method !== 'prize' && (
+              <button
+                className="btn small"
+                onClick={() =>
+                  dispatch({
+                    type: 'setPaymentMethod',
+                    playerId: p.id,
+                    paymentId: pay.id,
+                    method: pay.method === 'cash' ? 'interac' : 'cash',
+                  })
+                }
+              >
+                Change to {pay.method === 'cash' ? 'Interac' : 'cash'}
+              </button>
+            )}
             <button
               className="btn small danger"
               onClick={() => {

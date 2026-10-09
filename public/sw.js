@@ -14,7 +14,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    fetch(event.request)
+    // 'no-cache' asks the server every time, so a new version is not hidden by the browser's own cache.
+    (event.request.mode === 'navigate' ? fetch(event.request.url, { cache: 'no-cache' }) : fetch(event.request))
       .then((response) => {
         const copy = response.clone();
         caches.open(CACHE).then((cache) => cache.put(event.request, copy));

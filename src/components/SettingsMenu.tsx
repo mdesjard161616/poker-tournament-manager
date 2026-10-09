@@ -5,6 +5,8 @@ import type { AppState } from '../logic/types';
 import { dispatch, todayString } from '../store';
 import { Modal, Toggle } from './common';
 
+declare const __BUILD__: string;
+
 export function SettingsMenu({ state, onClose }: { state: AppState; onClose: () => void }) {
   const t = state.tournament;
   const fileInput = useRef<HTMLInputElement>(null);
@@ -102,6 +104,9 @@ export function SettingsMenu({ state, onClose }: { state: AppState; onClose: () 
           </>
         )}
       </div>
+      <p className="hint">
+        Version {__BUILD__}. To update, close the app completely and open it again while online.
+      </p>
     </Modal>
   );
 }

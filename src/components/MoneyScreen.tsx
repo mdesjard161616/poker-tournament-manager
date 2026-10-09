@@ -65,6 +65,7 @@ export function MoneyScreen({ t, openDetail }: { t: Tournament; openDetail: (id:
           <b>{money(got.total)}</b>
           <small>
             cash {money(got.cash)} · Interac {money(got.interac)}
+            {got.prize > 0 && ` · from prizes ${money(got.prize)}`}
           </small>
         </div>
         <div className={`stat${outstanding(t) > 0 ? ' bad' : ''}`}>
