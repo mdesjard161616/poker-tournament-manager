@@ -3,6 +3,7 @@ import { money, outstanding } from '../logic/logic';
 import { parseAppState, serializeState } from '../logic/storage';
 import type { AppState } from '../logic/types';
 import { dispatch, todayString } from '../store';
+import { VERSION } from '../version';
 import { Modal, Toggle } from './common';
 
 declare const __BUILD__: string;
@@ -105,7 +106,7 @@ export function SettingsMenu({ state, onClose }: { state: AppState; onClose: () 
         )}
       </div>
       <p className="hint">
-        Version {__BUILD__}. To update, close the app completely and open it again while online.
+        Version {VERSION}, built {__BUILD__}. To update, close the app completely and open it again while online.
       </p>
     </Modal>
   );

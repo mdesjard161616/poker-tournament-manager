@@ -84,10 +84,17 @@ main {
 
 .title {
   font-weight: 700;
-  margin-right: 12px;
+  margin-right: 6px;
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version {
+  color: var(--muted);
+  font-size: 12px;
+  margin-right: 12px;
   white-space: nowrap;
 }
 
@@ -787,6 +794,11 @@ textarea.input.entry {
 
   .title {
     max-width: none;
+    flex: 0 1 auto;
+    margin-right: 0;
+  }
+
+  .version {
     flex: 1;
     margin-right: 0;
   }

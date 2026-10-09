@@ -9,6 +9,7 @@ import { Modal } from './components/common';
 import { activePlayers } from './logic/logic';
 import type { Status, Tournament } from './logic/types';
 import { dispatch, getSaveError, useAppState } from './store';
+import { VERSION } from './version';
 
 type Screen = 'setup' | 'run' | 'money' | 'results';
 
@@ -59,6 +60,7 @@ export default function App() {
     <div className="app">
       <nav className="nav">
         <span className="title">{t.name || 'Tournament'}</span>
+        <span className="version">v{VERSION}</span>
         <div className="tabs">
           {screens.map((s) => (
             <button key={s.key} className={`tab${screen === s.key ? ' active' : ''}`} onClick={() => setScreen(s.key)}>
