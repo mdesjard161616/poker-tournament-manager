@@ -10,6 +10,7 @@ import {
   payoutPool,
   playerOwes,
   prizePool,
+  rebuyChipCount,
   seatCapacity,
   startBlockers,
   suggestedTableCount,
@@ -88,6 +89,18 @@ export function SetupScreen({ t, selectedId, setSelectedId, openDetail, openSeat
             <span>Rebuy ($)</span>
             <NumInput value={t.rebuyAmount} min={0} onCommit={(amount) => dispatch({ type: 'setRebuyAmount', amount })} />
           </label>
+          <label className="field">
+            <span>Starting stack (chips)</span>
+            <NumInput value={t.startingChips ?? 0} min={0} onCommit={(chips) => dispatch({ type: 'setStartingChips', chips })} />
+          </label>
+          {(t.startingChips ?? 0) > 0 ? (
+            <label className="field">
+              <span>Rebuy stack (chips)</span>
+              <NumInput value={rebuyChipCount(t)} min={0} onCommit={(chips) => dispatch({ type: 'setRebuyChips', chips })} />
+            </label>
+          ) : (
+            <p className="hint">Enter the starting stack to show the average stack on the Run screen.</p>
+          )}
           <label className="field">
             <span>Set aside from pool (%)</span>
             <NumInput

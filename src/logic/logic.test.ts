@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  averageStack,
   balancePlan,
   cashBox,
+  chipsInPlay,
   dealError,
   dealPool,
   evenDeal,
@@ -569,6 +571,37 @@ describe('charity night', () => {
     state = reduce(state, { type: 'setHoldback', percent: 0, label: '' });
     expect(state.tournament.holdback).toBeUndefined();
     expect(payoutPool(state.tournament)).toBe(1000);
+  });
+});
+
+describe('average stack', () => {
+  it('is hidden until a starting stack is set', () => {
+    expect(averageStack(started(10, 2).tournament)).toBeNull();
+  });
+
+  it('follows registrations, rebuys and eliminations', () => {
+    let state = run(started(10, 2), { type: 'setStartingChips', chips: 10000 }, { type: 'setRebuyChips', chips: 2000 });
+    const ids = state.tournament.players.map((p) => p.id);
+    expect(chipsInPlay(state.tournament)).toBe(100000);
+    expect(averageStack(state.tournament)).toBe(10000);
+    // 5 rebuys of 2k add 10k chips.
+    state = reduce(state, { type: 'rebuy', playerId: ids[0], method: 'cash', count: 5 });
+    expect(averageStack(state.tournament)).toBe(11000);
+    // A late registrant brings one more starting stack.
+    state = run(state, { type: 'addLatePlayer', name: 'Latecomer', seat: null });
+    expect(chipsInPlay(state.tournament)).toBe(120000);
+    expect(averageStack(state.tournament)).toBe(10909);
+    // An elimination leaves the chips with the players still in.
+    state = run(state, { type: 'eliminate', playerId: ids[1] }, { type: 'eliminate', playerId: ids[2] }, { type: 'eliminate', playerId: ids[3] });
+    expect(chipsInPlay(state.tournament)).toBe(120000);
+    expect(averageStack(state.tournament)).toBe(15000);
+    expect(parseAppState(JSON.parse(serializeState(state)))!.tournament).toMatchObject({ startingChips: 10000, rebuyChips: 2000 });
+  });
+
+  it('a rebuy gets a full starting stack unless a rebuy stack is set', () => {
+    let state = run(started(10, 2), { type: 'setStartingChips', chips: 5000 });
+    state = reduce(state, { type: 'rebuy', playerId: state.tournament.players[0].id, method: 'owes' });
+    expect(chipsInPlay(state.tournament)).toBe(55000);
   });
 });
 

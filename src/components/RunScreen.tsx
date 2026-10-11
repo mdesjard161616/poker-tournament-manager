@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import {
   MAX_REBUYS_AT_ONCE,
+  averageStack,
+  chipsInPlay,
+  rebuyChipCount,
   MAX_TABLES,
   activePlayers,
   computeAlert,
@@ -50,6 +53,7 @@ export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, o
   }
 
   const running = t.status === 'running';
+  const avgStack = averageStack(t);
   const alert = computeAlert(t);
   const tray = unseatedPlayers(t);
   const active = activePlayers(t);
@@ -91,6 +95,11 @@ export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, o
         <span className="counter">
           <b>{totalRebuys(t)}</b> rebuys
         </span>
+        {avgStack !== null && (
+          <span className="counter" title={`${chipsInPlay(t)!.toLocaleString('en-CA')} chips in play`}>
+            avg stack <b>{avgStack.toLocaleString('en-CA')}</b>
+          </span>
+        )}
         <span className="counter">
           pool <b>{money(prizePool(t))}</b>
         </span>
@@ -244,6 +253,7 @@ export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, o
             <div className="panel">
               <h3>
                 Rebuy {rebuys > 1 ? `${rebuys} × ${money(t.rebuyAmount)} = ${money(rebuys * t.rebuyAmount)}` : money(t.rebuyAmount)}
+                {rebuyChipCount(t) > 0 && <span className="hint">{(rebuys * rebuyChipCount(t)).toLocaleString('en-CA')} chips</span>}
               </h3>
               <div className="row">
                 {Array.from({ length: MAX_REBUYS_AT_ONCE }, (_, i) => i + 1).map((n) => (

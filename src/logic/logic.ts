@@ -209,6 +209,26 @@ export function totalRebuys(t: Tournament): number {
   return t.players.reduce((sum, p) => sum + rebuyCount(p), 0);
 }
 
+/** Chips one rebuy adds, or 0 when stacks are not configured. */
+export function rebuyChipCount(t: Tournament): number {
+  return (t.startingChips ?? 0) > 0 ? (t.rebuyChips ?? t.startingChips!) : 0;
+}
+
+/** Every chip handed out: one starting stack per registration plus the rebuys. Null when stacks are not configured. */
+export function chipsInPlay(t: Tournament): number | null {
+  const start = t.startingChips ?? 0;
+  if (start <= 0) return null;
+  return t.players.length * start + totalRebuys(t) * rebuyChipCount(t);
+}
+
+/** Chips in play shared between the players still in: an elimination leaves the chips on the table. */
+export function averageStack(t: Tournament): number | null {
+  const chips = chipsInPlay(t);
+  const left = activePlayers(t).length;
+  if (chips === null || left === 0) return null;
+  return Math.round(chips / left);
+}
+
 /** Sum of all charges, paid or not. */
 export function prizePool(t: Tournament): number {
   return t.players.reduce((sum, p) => sum + playerTotal(p), 0);

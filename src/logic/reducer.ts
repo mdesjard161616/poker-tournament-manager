@@ -54,6 +54,8 @@ export type Action =
   | { type: 'start' }
   | { type: 'rebuy'; playerId: string; method: 'cash' | 'interac' | 'owes'; count?: number }
   | { type: 'setHoldback'; percent: number; label: string }
+  | { type: 'setStartingChips'; chips: number }
+  | { type: 'setRebuyChips'; chips: number }
   | { type: 'markPaid'; playerId: string }
   | { type: 'settleFromPrize'; playerId: string }
   | { type: 'payPrize'; playerId: string; method: 'cash' | 'interac' }
@@ -181,6 +183,14 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
       }
       if (payoutPercentsError(action.percents)) return t;
       return { ...t, payoutPercents: action.percents.slice() };
+
+    case 'setStartingChips':
+      if (!Number.isInteger(action.chips) || action.chips < 0 || action.chips === (t.startingChips ?? 0)) return t;
+      return { ...t, startingChips: action.chips };
+
+    case 'setRebuyChips':
+      if (!Number.isInteger(action.chips) || action.chips < 0 || action.chips === t.rebuyChips) return t;
+      return { ...t, rebuyChips: action.chips };
 
     case 'setHoldback': {
       const { percent } = action;

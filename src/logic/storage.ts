@@ -99,6 +99,9 @@ export function parseTournament(v: unknown): Tournament | null {
   if (!eliminationOrder.every((id) => playerIds.has(id)) || new Set(eliminationOrder).size !== eliminationOrder.length) return null;
   const deal = v.deal === undefined ? undefined : parseList(v.deal, parseDealShare);
   if (deal === null || (deal && !deal.every((d) => playerIds.has(d.playerId)))) return null;
+  for (const key of ['startingChips', 'rebuyChips'] as const) {
+    if (v[key] !== undefined && (!isInt(v[key]) || (v[key] as number) < 0)) return null;
+  }
   let holdback: Tournament['holdback'];
   if (v.holdback !== undefined) {
     const h = v.holdback;
@@ -127,6 +130,8 @@ export function parseTournament(v: unknown): Tournament | null {
     tables,
     players,
     eliminationOrder,
+    ...(v.startingChips !== undefined ? { startingChips: v.startingChips as number } : {}),
+    ...(v.rebuyChips !== undefined ? { rebuyChips: v.rebuyChips as number } : {}),
     ...(holdback ? { holdback } : {}),
     ...(deal ? { deal } : {}),
   };
