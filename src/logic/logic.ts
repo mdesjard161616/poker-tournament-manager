@@ -308,8 +308,43 @@ export function finishingPlace(t: Tournament, playerId: string): number | null {
 
 // ---------- settling prizes ----------
 
-function placePayouts(t: Tournament): number[] {
-  return computePayouts(payoutPool(t), effectivePayoutPercents(t), t.payoutRounding);
+/** Prize by finishing place, index 0 = 1st: the percentages, with any agreed amounts on top. */
+export function placePayouts(t: Tournament): number[] {
+  const byPercent = computePayouts(payoutPool(t), effectivePayoutPercents(t), t.payoutRounding);
+  const agreed = t.placeAmounts ?? [];
+  return Array.from({ length: Math.max(byPercent.length, agreed.length) }, (_, i) => (i < agreed.length ? agreed[i] : byPercent[i]));
+}
+
+/** One amount per player still in, for 1st down to the next place out, adding up to what is left to share. */
+export function placeAmountsError(t: Tournament, amounts: number[]): string | null {
+  const left = activePlayers(t).length;
+  if (t.status !== 'running' || left < 2) return 'Payouts can be adjusted while at least 2 players are still in.';
+  if (amounts.length !== left) return `Enter an amount for each of the ${left} remaining places.`;
+  if (amounts.some((a) => !Number.isInteger(a) || a < 0)) return 'Amounts must be whole dollars, 0 or more.';
+  const total = amounts.reduce((sum, a) => sum + a, 0);
+  const pool = dealPool(t);
+  if (total !== pool) return `Amounts add up to ${money(total)}; there is ${money(pool)} to share.`;
+  return null;
+}
+
+/** Keeps the amounts for the first `keep` places and shares the rest of the money evenly below them. */
+export function splitRemaining(t: Tournament, keep: number): number[] {
+  const left = activePlayers(t).length;
+  const kept = placePayouts(t).slice(0, Math.min(keep, left - 1));
+  while (kept.length < Math.min(keep, left - 1)) kept.push(0);
+  const share = dealPool(t) - kept.reduce((sum, a) => sum + a, 0);
+  const places = left - kept.length;
+  const base = Math.floor(share / places);
+  const extra = share - base * places;
+  return [...kept, ...Array.from({ length: places }, (_, i) => base + (i < extra ? 1 : 0))];
+}
+
+/** Money the place payouts do not account for; not 0 when the pool or the field changed after amounts were agreed. */
+export function payoutGap(t: Tournament): number {
+  if (!t.placeAmounts || t.deal) return 0;
+  const payouts = placePayouts(t);
+  const total = payouts.slice(0, Math.max(t.players.length, 1)).reduce((sum, a) => sum + a, 0);
+  return payoutPool(t) - total;
 }
 
 /** Deal amount, or the prize for the finishing place; 0 while still in or outside the paid places. */

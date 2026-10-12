@@ -17,6 +17,10 @@ import {
   owedFromPrizes,
   settlement,
   paymentError,
+  payoutGap,
+  placeAmountsError,
+  placePayouts,
+  splitRemaining,
   playerOwes,
   playerPaid,
   playerTotal,
@@ -602,6 +606,61 @@ describe('average stack', () => {
     let state = run(started(10, 2), { type: 'setStartingChips', chips: 5000 });
     state = reduce(state, { type: 'rebuy', playerId: state.tournament.players[0].id, method: 'owes' });
     expect(chipsInPlay(state.tournament)).toBe(55000);
+  });
+});
+
+describe('adjusting remaining payouts', () => {
+  // 20 players at 40: pool 800, paying 360 / 215 / 145 / 80. Five are left.
+  function fiveLeft(): { state: AppState; ids: string[] } {
+    let state = run(setup(20, 3), { type: 'randomizeAll' }, { type: 'start' });
+    const ids = state.tournament.players.map((p) => p.id);
+    for (const id of ids.slice(5).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
+    return { state, ids };
+  }
+  const prize = (state: AppState, id: string) => settlement(state.tournament, state.tournament.players.find((p) => p.id === id)!).prize;
+
+  it('keeps 1st and splits 2nd to 4th money between places 2 to 5', () => {
+    const { state } = fiveLeft();
+    expect(placePayouts(state.tournament)).toEqual([360, 215, 145, 80]);
+    expect(splitRemaining(state.tournament, 1)).toEqual([360, 110, 110, 110, 110]);
+    expect(splitRemaining(state.tournament, 0)).toEqual([160, 160, 160, 160, 160]);
+  });
+
+  it('play continues and each place gets the agreed amount', () => {
+    const { state: before, ids } = fiveLeft();
+    let state = reduce(before, { type: 'setPlaceAmounts', amounts: splitRemaining(before.tournament, 1) });
+    expect(state.tournament.status).toBe('running');
+    expect(payoutGap(state.tournament)).toBe(0);
+    for (const id of ids.slice(1).reverse()) state = reduce(state, { type: 'eliminate', playerId: id });
+    expect(state.tournament.status).toBe('finished');
+    expect(ids.slice(0, 5).map((id) => prize(state, id))).toEqual([360, 110, 110, 110, 110]);
+    expect(prize(state, ids[5])).toBe(0);
+    expect(state.tournament.players.reduce((sum, p) => sum + settlement(state.tournament, p).prize, 0)).toBe(800);
+    expect(parseAppState(JSON.parse(serializeState(state)))!.tournament.placeAmounts).toEqual([360, 110, 110, 110, 110]);
+    // A rebuy after the agreement leaves money unassigned, which the app can flag.
+    expect(payoutGap(run(before, { type: 'setPlaceAmounts', amounts: [360, 110, 110, 110, 110] }, { type: 'rebuy', playerId: ids[0], method: 'cash' }).tournament)).toBe(40);
+  });
+
+  it('rejects amounts that do not add up or do not cover every remaining place', () => {
+    const { state } = fiveLeft();
+    expect(placeAmountsError(state.tournament, [360, 110, 110, 110, 100])).toContain('$790');
+    expect(placeAmountsError(state.tournament, [400, 400])).toContain('5 remaining places');
+    expect(reduce(state, { type: 'setPlaceAmounts', amounts: [400, 400] })).toBe(state);
+  });
+
+  it('can be adjusted again later, and reset to the percentages', () => {
+    const { state: before, ids } = fiveLeft();
+    let state = reduce(before, { type: 'setPlaceAmounts', amounts: [360, 110, 110, 110, 110] });
+    state = reduce(state, { type: 'eliminate', playerId: ids[4] });
+    // 5th took 110; the four left share 690.
+    expect(dealPool(state.tournament)).toBe(690);
+    state = reduce(state, { type: 'setPlaceAmounts', amounts: [300, 130, 130, 130] });
+    expect(prize(state, ids[4])).toBe(110); // 5th keeps what was agreed when they went out
+    expect(payoutGap(state.tournament)).toBe(0);
+    expect(state.tournament.placeAmounts).toEqual([300, 130, 130, 130, 110]);
+    state = reduce(state, { type: 'clearPlaceAmounts' });
+    expect(placePayouts(state.tournament)).toEqual([360, 215, 145, 80]);
+    expect(state.tournament.placeAmounts).toBeUndefined();
   });
 });
 

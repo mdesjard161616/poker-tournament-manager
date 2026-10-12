@@ -16,6 +16,8 @@ import {
   occupantOf,
   openTables,
   paymentError,
+  placeAmountsError,
+  placePayouts,
   payoutPercentsError,
   playerOwes,
   playerPaid,
@@ -62,6 +64,8 @@ export type Action =
   | { type: 'deletePrizePayment'; playerId: string; paymentId: string }
   | { type: 'setDeal'; shares: DealShare[] }
   | { type: 'cancelDeal' }
+  | { type: 'setPlaceAmounts'; amounts: number[] }
+  | { type: 'clearPlaceAmounts' }
   | { type: 'addPayment'; playerId: string; amount: number; method: 'cash' | 'interac' }
   | { type: 'deletePayment'; playerId: string; paymentId: string }
   | { type: 'setPaymentMethod'; playerId: string; paymentId: string; method: 'cash' | 'interac' }
@@ -333,6 +337,17 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
     case 'setDeal':
       if (dealError(t, action.shares)) return t;
       return { ...t, deal: action.shares.map((d) => ({ playerId: d.playerId, amount: d.amount })) };
+
+    case 'setPlaceAmounts':
+      if (placeAmountsError(t, action.amounts)) return t;
+      // Places already taken keep the prize they had, so a later agreement cannot change it.
+      return { ...t, placeAmounts: [...action.amounts, ...placePayouts(t).slice(action.amounts.length)] };
+
+    case 'clearPlaceAmounts': {
+      if (!t.placeAmounts) return t;
+      const { placeAmounts: _placeAmounts, ...rest } = t;
+      return rest;
+    }
 
     case 'cancelDeal': {
       if (!t.deal) return t;

@@ -27,6 +27,8 @@ export interface Tournament {
   rebuyChips?: number;
   /** A share of the pool set aside before prizes, for example for a charity night. */
   holdback?: { percent: number; label: string };
+  /** Agreed dollar amounts by finishing place, index 0 = 1st, replacing the percentages for those places. Play continues. */
+  placeAmounts?: number[];
   /** Agreed amounts for the players still in when they chopped. Setting it ends the tournament. */
   deal?: DealShare[];
 }

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   ROUNDING_CHOICES,
-  computePayouts,
   defaultPayoutPercents,
   effectivePayoutPercents,
   holdbackAmount,
@@ -11,6 +10,7 @@ import {
   payoutPercentsError,
   payoutPool,
   payoutsAreFinal,
+  placePayouts,
   prizePool,
 } from '../logic/logic';
 import type { Tournament } from '../logic/types';
@@ -25,7 +25,7 @@ export function PayoutEditor({ t }: { t: Tournament }) {
 
   const pool = payoutPool(t);
   const aside = holdbackAmount(t);
-  const payouts = computePayouts(pool, percents, t.payoutRounding);
+  const payouts = placePayouts(t);
   const numbers = draft.map((d) => (d.trim() === '' ? NaN : Number(d)));
   const dirty = draft.join('/') !== key;
   const problem = dirty ? payoutPercentsError(numbers) : null;
@@ -101,6 +101,7 @@ export function PayoutEditor({ t }: { t: Tournament }) {
           </button>
         ))}
       </div>
+      {t.placeAmounts && <p className="hint">Some places were adjusted by agreement, so their payout no longer follows the percentage.</p>}
       <p className="hint">
         {aside > 0
           ? `Pool ${money(prizePool(t))} − ${money(aside)} (${t.holdback!.percent}%) for ${holdbackLabel(t)} = ${money(pool)} in prizes.`

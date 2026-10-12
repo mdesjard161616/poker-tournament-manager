@@ -102,6 +102,7 @@ export function parseTournament(v: unknown): Tournament | null {
   for (const key of ['startingChips', 'rebuyChips'] as const) {
     if (v[key] !== undefined && (!isInt(v[key]) || (v[key] as number) < 0)) return null;
   }
+  if (v.placeAmounts !== undefined && !(Array.isArray(v.placeAmounts) && v.placeAmounts.every((a) => isInt(a) && a >= 0))) return null;
   let holdback: Tournament['holdback'];
   if (v.holdback !== undefined) {
     const h = v.holdback;
@@ -133,6 +134,7 @@ export function parseTournament(v: unknown): Tournament | null {
     ...(v.startingChips !== undefined ? { startingChips: v.startingChips as number } : {}),
     ...(v.rebuyChips !== undefined ? { rebuyChips: v.rebuyChips as number } : {}),
     ...(holdback ? { holdback } : {}),
+    ...(v.placeAmounts !== undefined ? { placeAmounts: v.placeAmounts as number[] } : {}),
     ...(deal ? { deal } : {}),
   };
 }

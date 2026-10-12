@@ -9,8 +9,12 @@ import {
   holdbackLabel,
   money,
   ordinal,
+  payoutGap,
   payoutPool,
   payoutsAreFinal,
+  placeAmountsError,
+  placePayouts,
+  splitRemaining,
   playerOwes,
   settleAmount,
   settlement,
@@ -28,6 +32,7 @@ interface Row {
 
 export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; onReinstate: (id: string) => void; openDetail: (id: string) => void }) {
   const [dealing, setDealing] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
   const active = activePlayers(t);
 
   const dealRows: Row[] = (t.deal ?? [])
@@ -55,11 +60,44 @@ export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; o
           {t.status === 'running' && <span className="hint"> {active.length} still in</span>}
         </h3>
         {t.status === 'running' && active.length >= 2 && (
-          <div className="row wrap">
-            <button className="btn" onClick={() => setDealing(true)}>
-              Make a deal…
-            </button>
-            <span className="hint">When the players still in agree to split the money.</span>
+          <>
+            <div className="row wrap">
+              <button className="btn" onClick={() => setAdjusting(true)}>
+                Adjust remaining payouts…
+              </button>
+              <button className="btn" onClick={() => setDealing(true)}>
+                Make a deal…
+              </button>
+            </div>
+            <p className="hint">
+              Adjust changes what each remaining place pays and play goes on. A deal gives an amount to each player by name and ends the
+              tournament.
+            </p>
+          </>
+        )}
+        {t.placeAmounts && !t.deal && (
+          <div className="set-aside">
+            <div className="row wrap">
+              <span className="grow">
+                <b>Payouts adjusted by agreement:</b> {describePlaces(placePayouts(t).slice(0, t.placeAmounts.length))}
+              </span>
+              {t.status === 'running' && (
+                <button
+                  className="btn small"
+                  onClick={() => {
+                    if (window.confirm('Go back to the percentage payouts for every place?')) dispatch({ type: 'clearPlaceAmounts' });
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            {payoutGap(t) !== 0 && (
+              <p className="bad-text">
+                The pool or the field changed since: {money(Math.abs(payoutGap(t)))} is {payoutGap(t) > 0 ? 'not assigned to any place' : 'more than the pool holds'}.
+                Adjust the remaining payouts again.
+              </p>
+            )}
           </div>
         )}
         {t.deal && (
@@ -154,6 +192,7 @@ export function ResultsScreen({ t, onReinstate, openDetail }: { t: Tournament; o
         <p className="hint">Tap a player for their payments, or to reinstate them.</p>
       </div>
       {dealing && <DealDialog t={t} onClose={() => setDealing(false)} />}
+      {adjusting && <AdjustDialog t={t} onClose={() => setAdjusting(false)} />}
     </div>
   );
 }
@@ -273,6 +312,84 @@ function DealDialog({ t, onClose }: { t: Tournament; onClose: () => void }) {
         </button>
       </div>
       {problem && entered > 0 && <p className="error">{problem}</p>}
+    </Modal>
+  );
+}
+
+/** "1st $360 · 2nd to 5th $110 each" */
+function describePlaces(amounts: number[]): string {
+  const parts: string[] = [];
+  for (let i = 0; i < amounts.length; ) {
+    let j = i;
+    while (j + 1 < amounts.length && amounts[j + 1] === amounts[i]) j++;
+    parts.push(i === j ? `${ordinal(i + 1)} ${money(amounts[i])}` : `${ordinal(i + 1)} to ${ordinal(j + 1)} ${money(amounts[i])} each`);
+    i = j + 1;
+  }
+  return parts.join(' · ');
+}
+
+function AdjustDialog({ t, onClose }: { t: Tournament; onClose: () => void }) {
+  const left = activePlayers(t).length;
+  const pool = dealPool(t);
+  const current = placePayouts(t);
+  const [draft, setDraft] = useState<string[]>(() => Array.from({ length: left }, (_, i) => String(current[i] ?? 0)));
+
+  const amounts = draft.map((d) => (d.trim() === '' ? 0 : Number(d)));
+  const entered = amounts.reduce((sum, a) => sum + (Number.isFinite(a) ? a : 0), 0);
+  const problem = placeAmountsError(t, amounts);
+  const fill = (values: number[]) => setDraft(values.map(String));
+
+  return (
+    <Modal title="Adjust remaining payouts" onClose={onClose}>
+      <p className="hint">
+        Set what each remaining place pays. Play goes on, and each player gets the amount for the place they finish in. Players already
+        out keep their prize.
+      </p>
+      <div className="stat-row">
+        <div className="stat">
+          <span>To share</span>
+          <b>{money(pool)}</b>
+        </div>
+        <div className={`stat${entered === pool ? '' : ' bad'}`}>
+          <span>Left to give</span>
+          <b>{money(pool - entered)}</b>
+        </div>
+      </div>
+      <div className="row wrap">
+        <button className="btn small grow" onClick={() => fill(splitRemaining(t, 1))}>
+          Keep 1st, split the rest
+        </button>
+        <button className="btn small grow" onClick={() => fill(splitRemaining(t, 0))}>
+          Split all evenly
+        </button>
+      </div>
+      {draft.map((d, i) => (
+        <label className="field" key={i}>
+          <span>{ordinal(i + 1)}</span>
+          <span className="row">
+            <span className="prefix">$</span>
+            <input
+              className="input num"
+              type="number"
+              inputMode="numeric"
+              aria-label={`Amount for ${ordinal(i + 1)} place`}
+              value={d}
+              onChange={(e) => setDraft(draft.map((x, j) => (j === i ? e.target.value : x)))}
+            />
+          </span>
+        </label>
+      ))}
+      {problem && <p className="error">{problem}</p>}
+      <button
+        className="btn primary"
+        disabled={problem !== null}
+        onClick={() => {
+          dispatch({ type: 'setPlaceAmounts', amounts });
+          onClose();
+        }}
+      >
+        Apply
+      </button>
     </Modal>
   );
 }
