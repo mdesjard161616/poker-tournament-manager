@@ -69,41 +69,85 @@ export function useWakeLock(active: boolean): WakeStatus {
 
 let audio: AudioContext | null = null;
 
-/** Browsers only allow sound after a tap: call this from the clock's buttons. */
+/**
+ * Browsers only allow sound after a tap, and iPhones add two rules of their own: sound made this
+ * way is muted by the ring/silent switch unless the page declares itself as playback, and the
+ * sound system is put to sleep whenever the app leaves the screen. Safe to call on every tap.
+ */
 export function unlockSound(): void {
   try {
+    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (session && session.type !== 'playback') session.type = 'playback';
+    const created = audio === null;
     audio ??= new AudioContext();
-    if (audio.state === 'suspended') void audio.resume();
+    if (audio.state !== 'running') void audio.resume().catch(() => undefined);
+    if (created) {
+      // An inaudible blip inside the tap itself: older iPhones only unlock once something has played.
+      const source = audio.createBufferSource();
+      source.buffer = audio.createBuffer(1, 1, 22050);
+      source.connect(audio.destination);
+      source.start(0);
+    }
   } catch {
     audio = null;
   }
+}
+
+/** Unlocks on the first tap anywhere, and again after each return to the app. */
+export function installSoundUnlock(): () => void {
+  const events = ['pointerdown', 'touchend', 'keydown'] as const;
+  events.forEach((e) => document.addEventListener(e, unlockSound, { passive: true }));
+  const onVisible = () => {
+    if (document.visibilityState === 'visible' && audio && audio.state !== 'running') void audio.resume().catch(() => undefined);
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  return () => {
+    events.forEach((e) => document.removeEventListener(e, unlockSound));
+    document.removeEventListener('visibilitychange', onVisible);
+  };
 }
 
 function beep(at: number, frequency: number, seconds: number): void {
   if (!audio) return;
   const osc = audio.createOscillator();
   const gain = audio.createGain();
-  osc.type = 'sine';
+  osc.type = 'square'; // carries further across a room than a pure tone
   osc.frequency.value = frequency;
   gain.gain.setValueAtTime(0.0001, at);
-  gain.gain.exponentialRampToValueAtTime(0.6, at + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.5, at + 0.02);
   gain.gain.exponentialRampToValueAtTime(0.0001, at + seconds);
   osc.connect(gain).connect(audio.destination);
   osc.start(at);
   osc.stop(at + seconds + 0.05);
 }
 
-/** Generated in the browser: no sound file, nothing to download. */
-export function playSignal(kind: 'warning' | 'level'): void {
+function schedule(kind: 'warning' | 'level'): void {
+  if (!audio) return;
+  const t = audio.currentTime + 0.05;
+  if (kind === 'warning') beep(t, 660, 0.3);
+  else [0, 0.35, 0.7].forEach((d, i) => beep(t + d, i === 2 ? 1175 : 880, i === 2 ? 0.7 : 0.25));
+}
+
+/**
+ * Generated in the browser: no sound file, nothing to download. Returns false when the phone
+ * has not allowed sound yet, which the Test sound button reports.
+ */
+export function playSignal(kind: 'warning' | 'level'): boolean {
+  let played = false;
   try {
-    if (audio && audio.state === 'running') {
-      const t = audio.currentTime;
-      if (kind === 'warning') beep(t, 660, 0.25);
-      else [0, 0.3, 0.6].forEach((d, i) => beep(t + d, i === 2 ? 1175 : 880, i === 2 ? 0.6 : 0.2));
+    if (audio) {
+      if (audio.state === 'running') {
+        schedule(kind);
+        played = true;
+      } else {
+        // Asleep after a spell in the background: wake it, then play.
+        void audio.resume().then(() => schedule(kind)).catch(() => undefined);
+      }
     }
     // Not supported on iPhones; the sound and the flash still happen.
     navigator.vibrate?.(kind === 'warning' ? 200 : [300, 150, 300]);
   } catch {
     // A phone that refuses sound must never break the clock.
   }
+  return played;
 }

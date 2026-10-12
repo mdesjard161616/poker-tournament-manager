@@ -139,6 +139,8 @@ Phone limits to know about:
 
 - A phone cannot play a sound while its screen is locked or another app is in front. The clock keeps correct time, but the level-change sound only plays while the app is on screen. Leaving the phone on the Clock tab covers the normal case.
 - iPhones do not support vibration from a web app; the sound and the flash still work.
+- An iPhone mutes this kind of sound when its ring/silent switch is on silent. The app asks the phone to treat it as playback, which ignores the switch on iOS 16.4 and later; on older versions the switch must be on ring. A "Test sound" button on the Clock tab plays the level-change beeps so the host can check before the night.
+- A phone only allows sound after a tap. The app takes the first tap anywhere as that permission, and asks again each time it returns to the screen.
 
 ## Keeping the screen on
 

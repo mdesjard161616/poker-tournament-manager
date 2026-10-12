@@ -1,4 +1,5 @@
-import { unlockSound, useWakeLock } from '../clock';
+import { useState } from 'react';
+import { playSignal, unlockSound, useWakeLock } from '../clock';
 import {
   chipRemovals,
   clockRunning,
@@ -38,6 +39,7 @@ export function chipsForEstimate(t: Tournament): number {
 export function ClockScreen({ t, clock, position, elapsedMs, now, flash, goToSetup }: Props) {
   // The screen stays on for as long as this tab is the one showing.
   const wake = useWakeLock(true);
+  const [soundNote, setSoundNote] = useState<string | null>(null);
   const plan = t.blinds;
 
   if (!plan || !position) {
@@ -149,6 +151,19 @@ export function ClockScreen({ t, clock, position, elapsedMs, now, flash, goToSet
         <button className="btn small" onClick={goToSetup}>
           Edit the levels
         </button>
+        <button
+          className="btn small"
+          onClick={() => {
+            unlockSound();
+            setSoundNote(
+              playSignal('level')
+                ? 'You should hear three beeps. Nothing? Turn the volume up; on an older iPhone also flip the ring/silent switch to ring.'
+                : 'The phone was not ready for sound. Tap Test sound once more.',
+            );
+          }}
+        >
+          Test sound
+        </button>
         {started && (
           <button
             className="btn small danger"
@@ -160,6 +175,7 @@ export function ClockScreen({ t, clock, position, elapsedMs, now, flash, goToSet
           </button>
         )}
       </div>
+      {soundNote && <p className="hint">{soundNote}</p>}
     </div>
   );
 }

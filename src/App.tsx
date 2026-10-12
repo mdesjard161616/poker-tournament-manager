@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { playSignal, useNow } from './clock';
+import { installSoundUnlock, playSignal, useNow } from './clock';
 import { ClockScreen, chipsForEstimate } from './components/ClockScreen';
 import { MoneyScreen } from './components/MoneyScreen';
 import { PlayerDetail } from './components/PlayerDetail';
@@ -95,6 +95,9 @@ export default function App() {
   const position = plan ? clockPosition(plan.levels, elapsedMs) : null;
   const [flash, setFlash] = useState(false);
   const [entriesNotice, setEntriesNotice] = useState<number | null>(null);
+
+  // The first tap anywhere allows sound, so a clock already running after a reload still rings.
+  useEffect(() => installSoundUnlock(), []);
 
   // Sound, vibration and a flash at one minute left and at each change of level.
   const lastRow = useRef<number | null>(null);
