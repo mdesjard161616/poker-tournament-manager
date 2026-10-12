@@ -1,5 +1,6 @@
+import { defaultChipSet, levelError, newClock } from './blinds';
 import { MAX_SEATS, MIN_SEATS } from './logic';
-import type { AppState, Charge, DealShare, Payment, Player, PrizePayment, Table, Tournament } from './types';
+import type { AppState, BlindLevel, BlindPlan, Charge, ChipSet, ClockState, DealShare, Payment, Player, PrizePayment, Table, Tournament } from './types';
 
 export const STORAGE_KEY = 'poker-tournament-manager:v1';
 
@@ -77,6 +78,56 @@ function parsePlayer(v: unknown): Player | null {
   return { id: v.id, name: v.name, seat, charges, payments, ...(prizePaid ? { prizePaid } : {}) };
 }
 
+function parseBlindLevel(v: unknown): BlindLevel | null {
+  if (!isObject(v) || (v.kind !== 'level' && v.kind !== 'break')) return null;
+  if (!isInt(v.smallBlind) || !isInt(v.bigBlind) || !isInt(v.minutes)) return null;
+  const row: BlindLevel = { kind: v.kind, smallBlind: v.smallBlind, bigBlind: v.bigBlind, minutes: v.minutes };
+  return levelError(row) ? null : row;
+}
+
+function parseBlindPlan(v: unknown): BlindPlan | null {
+  if (!isObject(v) || !isInt(v.expectedPlayers) || !isInt(v.expectedRebuys) || !isInt(v.levelMinutes)) return null;
+  if (typeof v.edited !== 'boolean') return null;
+  const levels = parseList(v.levels, parseBlindLevel);
+  if (!levels || !levels.some((row) => row.kind === 'level')) return null;
+  for (const key of ['desiredMinutes', 'closeEntriesAfterLevel'] as const) {
+    if (v[key] !== undefined && (!isInt(v[key]) || (v[key] as number) < 1)) return null;
+  }
+  if (v.entriesClosed !== undefined && typeof v.entriesClosed !== 'boolean') return null;
+  return {
+    expectedPlayers: v.expectedPlayers,
+    expectedRebuys: v.expectedRebuys,
+    levelMinutes: v.levelMinutes,
+    ...(v.desiredMinutes !== undefined ? { desiredMinutes: v.desiredMinutes as number } : {}),
+    ...(v.closeEntriesAfterLevel !== undefined ? { closeEntriesAfterLevel: v.closeEntriesAfterLevel as number } : {}),
+    ...(v.entriesClosed !== undefined ? { entriesClosed: v.entriesClosed as boolean } : {}),
+    levels,
+    edited: v.edited,
+  };
+}
+
+function parseClock(v: unknown): ClockState | null {
+  if (!isObject(v)) return null;
+  if (v.startedAt !== null && typeof v.startedAt !== 'number') return null;
+  if (typeof v.elapsedBeforeMs !== 'number' || typeof v.adjustMs !== 'number') return null;
+  return { startedAt: v.startedAt as number | null, elapsedBeforeMs: v.elapsedBeforeMs, adjustMs: v.adjustMs };
+}
+
+function parseChipSet(v: unknown): ChipSet | null {
+  if (!isObject(v) || !Array.isArray(v.chips) || v.chips.length === 0) return null;
+  const chips: ChipSet['chips'] = [];
+  for (const c of v.chips) {
+    if (!isObject(c) || !isInt(c.value) || c.value <= 0 || !isInt(c.count) || c.count < 0) return null;
+    chips.push({ value: c.value, count: c.count });
+  }
+  const counts = (m: unknown): number[] | null =>
+    Array.isArray(m) && m.length === chips.length && m.every((n) => isInt(n) && n >= 0) ? (m as number[]) : null;
+  const startingMakeup = counts(v.startingMakeup);
+  const rebuyMakeup = counts(v.rebuyMakeup);
+  if (!startingMakeup || !rebuyMakeup) return null;
+  return { chips, startingMakeup, rebuyMakeup };
+}
+
 export function parseTournament(v: unknown): Tournament | null {
   if (!isObject(v)) return null;
   if (typeof v.name !== 'string') return null;
@@ -103,6 +154,8 @@ export function parseTournament(v: unknown): Tournament | null {
     if (v[key] !== undefined && (!isInt(v[key]) || (v[key] as number) < 0)) return null;
   }
   if (v.placeAmounts !== undefined && !(Array.isArray(v.placeAmounts) && v.placeAmounts.every((a) => isInt(a) && a >= 0))) return null;
+  const blinds = v.blinds === undefined ? undefined : parseBlindPlan(v.blinds);
+  if (blinds === null) return null;
   let holdback: Tournament['holdback'];
   if (v.holdback !== undefined) {
     const h = v.holdback;
@@ -133,6 +186,7 @@ export function parseTournament(v: unknown): Tournament | null {
     eliminationOrder,
     ...(v.startingChips !== undefined ? { startingChips: v.startingChips as number } : {}),
     ...(v.rebuyChips !== undefined ? { rebuyChips: v.rebuyChips as number } : {}),
+    ...(blinds ? { blinds } : {}),
     ...(holdback ? { holdback } : {}),
     ...(v.placeAmounts !== undefined ? { placeAmounts: v.placeAmounts as number[] } : {}),
     ...(deal ? { deal } : {}),
@@ -145,11 +199,15 @@ export function parseAppState(v: unknown): AppState | null {
   const tournament = parseTournament(v.tournament);
   const undoStack = parseList(v.undoStack ?? [], parseTournament);
   if (!tournament || !undoStack) return null;
-  return { tournament, undoStack };
+  // Saves from before the clock existed have neither of these.
+  const clock = v.clock === undefined ? newClock() : parseClock(v.clock);
+  const chipSet = v.chipSet === undefined ? defaultChipSet() : parseChipSet(v.chipSet);
+  if (!clock || !chipSet) return null;
+  return { tournament, undoStack, clock, chipSet };
 }
 
 export function serializeState(state: AppState): string {
-  return JSON.stringify({ version: 1, tournament: state.tournament, undoStack: state.undoStack });
+  return JSON.stringify({ version: 1, tournament: state.tournament, undoStack: state.undoStack, clock: state.clock, chipSet: state.chipSet });
 }
 
 /** Writes the state; if the browser's storage quota is hit, drops the oldest undo steps and retries. */

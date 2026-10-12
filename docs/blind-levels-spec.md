@@ -1,6 +1,6 @@
 # Blind Levels and Clock Spec
 
-Oct 12, 2026 · draft for review · adds to [spec.md](spec.md)
+Oct 12, 2026 · built in v1.9.0 · adds to [spec.md](spec.md)
 
 The app suggests a blind structure from the expected field, estimates how long the tournament will last, lets the host stretch or shrink it to a target length, and then runs the clock on tournament night. It replaces the separate blind-clock tool.
 
@@ -228,7 +228,7 @@ Each row is a unit test on the logic module, except the three "Screen" rows, whi
 | First level | Starting stack 5,000 | 25/50 |
 | First level | Starting stack 10,000 | 50/100 |
 | Last level | Typical night | Expected last level 4,000/8,000 |
-| Structure | Typical night, 20-minute levels, no desired length | 16 levels to the expected last, 3 more after, breaks after levels 6 and 12 |
+| Structure | Typical night, 20-minute levels, no desired length | 16 levels to the expected last, 3 more after, breaks after levels 5, 11 and 18 (the first two moved one level earlier, from 6 and 12, to line up with removing the 25s and the 100s) |
 | Estimate | Typical night | Likely 5 h 40, earliest 5 h 20 at 3,000/6,000, latest 6 h 50 at 8,000/16,000 |
 | Fit | Typical night, desired length 4 h | 15-minute levels, 15 levels to the expected last, likely end 3 h 55 |
 | Fit | Typical night, desired length 1 h | Rejected, shortest possible length 1 h 30 |
@@ -254,17 +254,17 @@ Each row is a unit test on the logic module, except the three "Screen" rows, whi
 
 ## Assumptions to confirm
 
-These are choices made without an answer from the host; change any of them before the build.
+These were choices made without an answer from the host. The host approved the spec as written on Oct 12, 2026, so all of them are built.
 
-- [ ] Each player starts 100 big blinds deep (5,000 chips start at 25/50).
-- [ ] The tournament is expected to end when the big blind reaches about 1/20 of the chips in play.
-- [ ] Default level length is 20 minutes, and the allowed lengths are 10, 12, 15, 20, 25 and 30.
-- [ ] A 10-minute break after every 2 hours of play, moved by up to one level to line up with removing a chip.
-- [ ] Rebuys and late registration close automatically at a chosen level, with the host able to reopen them.
-- [ ] The clock is started by its own button, separately from the tournament's Start.
-- [ ] The clock gets a fifth tab rather than living inside the Run screen.
-- [ ] The screen is kept on only on the Clock tab, not on the other tabs while the clock runs.
-- [ ] The app reminds the host to remove 25s, 100s and 500s once the blinds no longer need them.
-- [ ] The app checks the chip set against the expected field but does not work out the stack make-up itself; the host enters it.
-- [ ] The chip set is remembered across tournaments; everything else still starts empty.
-- [ ] One structure for the whole field: no separate final-table levels.
+- [x] Each player starts 100 big blinds deep (5,000 chips start at 25/50).
+- [x] The tournament is expected to end when the big blind reaches about 1/20 of the chips in play.
+- [x] Default level length is 20 minutes, and the allowed lengths are 10, 12, 15, 20, 25 and 30.
+- [x] A 10-minute break after every 2 hours of play, moved by up to one level to line up with removing a chip.
+- [x] Rebuys and late registration close automatically at a chosen level, with the host able to reopen them.
+- [x] The clock is started by its own button, separately from the tournament's Start.
+- [x] The clock gets a fifth tab rather than living inside the Run screen.
+- [x] The screen is kept on only on the Clock tab, not on the other tabs while the clock runs.
+- [x] The app reminds the host to remove 25s, 100s and 500s once the blinds no longer need them.
+- [x] The app checks the chip set against the expected field but does not work out the stack make-up itself; the host enters it.
+- [x] The chip set is remembered across tournaments; everything else still starts empty.
+- [x] One structure for the whole field: no separate final-table levels.

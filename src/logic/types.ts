@@ -27,6 +27,8 @@ export interface Tournament {
   rebuyChips?: number;
   /** A share of the pool set aside before prizes, for example for a charity night. */
   holdback?: { percent: number; label: string };
+  /** The blind structure and what it was suggested from. */
+  blinds?: BlindPlan;
   /** Agreed dollar amounts by finishing place, index 0 = 1st, replacing the percentages for those places. Play continues. */
   placeAmounts?: number[];
   /** Agreed amounts for the players still in when they chopped. Setting it ends the tournament. */
@@ -72,7 +74,43 @@ export interface Payment {
   method: PaymentMethod;
 }
 
+export interface BlindLevel {
+  kind: 'level' | 'break';
+  smallBlind: number; // 0 for a break
+  bigBlind: number; // 0 for a break
+  minutes: number;
+}
+
+export interface BlindPlan {
+  expectedPlayers: number;
+  expectedRebuys: number;
+  levelMinutes: number;
+  desiredMinutes?: number;
+  /** Rebuys and late registration close when this level ends. */
+  closeEntriesAfterLevel?: number;
+  /** Set once the app has closed them, so reopening by hand sticks. */
+  entriesClosed?: boolean;
+  levels: BlindLevel[];
+  edited: boolean; // true once the host changed a row by hand
+}
+
+export interface ChipSet {
+  chips: { value: number; count: number }[]; // smallest first
+  startingMakeup: number[]; // count per chip, same order
+  rebuyMakeup: number[];
+}
+
+export interface ClockState {
+  startedAt: number | null; // epoch ms of the current run
+  elapsedBeforeMs: number; // time banked before the last pause
+  adjustMs: number; // from Previous, Next and the +1 / -1 minute buttons
+}
+
 export interface AppState {
   tournament: Tournament;
   undoStack: Tournament[]; // previous states, oldest first
+  /** Beside the tournament, so Undo never rewinds it. */
+  clock: ClockState;
+  /** The host's chips: the one thing that survives New tournament. */
+  chipSet: ChipSet;
 }

@@ -29,8 +29,19 @@ import {
   startBlockers,
   suggestedTableCount,
 } from './logic';
+import {
+  BREAK_MINUTES,
+  defaultChipSet,
+  ladderIndexForBigBlind,
+  ladderSmallBlind,
+  levelError,
+  newClock,
+  playLevels,
+  reduceClock,
+  type ClockAction,
+} from './blinds';
 import { newId, shuffle } from './rng';
-import type { AppState, DealShare, Player, Seat, Tournament } from './types';
+import type { AppState, BlindLevel, BlindPlan, ChipSet, DealShare, Player, Seat, Tournament } from './types';
 
 export const UNDO_LIMIT = 200;
 
@@ -75,12 +86,24 @@ export type Action =
   | { type: 'breakTable'; tableId: string }
   | { type: 'redrawFinalTable' }
   | { type: 'addTable' }
+  | { type: 'setBlindPlan'; plan: BlindPlan }
+  | { type: 'clearBlindPlan' }
+  | { type: 'editBlindRow'; index: number; row: BlindLevel }
+  | { type: 'removeBlindRow'; index: number }
+  | { type: 'addBlindLevel' }
+  | { type: 'addBreakAfter'; levelNumber: number }
+  | { type: 'moveBlindRow'; index: number; by: -1 | 1 }
+  | { type: 'setCloseEntriesAfter'; levelNumber: number }
+  | { type: 'closeEntries' }
+  | ClockAction
+  | { type: 'setChipCount'; index: number; count: number }
+  | { type: 'setChipMakeup'; stack: 'starting' | 'rebuy'; index: number; count: number }
   | { type: 'undo' }
   | { type: 'import'; state: AppState }
   | { type: 'newTournament'; today: string };
 
 export function initialState(today: string): AppState {
-  return { tournament: createTournament(today), undoStack: [] };
+  return { tournament: createTournament(today), undoStack: [], clock: newClock(), chipSet: defaultChipSet() };
 }
 
 function mapPlayer(t: Tournament, playerId: string, fn: (p: Player) => Player): Tournament {
@@ -92,6 +115,10 @@ function mapPlayer(t: Tournament, playerId: string, fn: (p: Player) => Player): 
     return next;
   });
   return changed ? { ...t, players } : t;
+}
+
+function withBlindRows(t: Tournament, levels: BlindLevel[]): Tournament {
+  return { ...t, blinds: { ...t.blinds!, levels, edited: true } };
 }
 
 function findPlayer(t: Tournament, playerId: string): Player | undefined {
@@ -422,9 +449,81 @@ function reduceTournament(t: Tournament, action: Action): Tournament {
       return { ...t, tables: [...t.tables, makeTable(number)] };
     }
 
+    case 'setBlindPlan': {
+      const { plan } = action;
+      if (playLevels(plan.levels).length === 0 || plan.levels.some((row) => levelError(row))) return t;
+      return { ...t, blinds: { ...plan, levels: plan.levels.map((row) => ({ ...row })) } };
+    }
+
+    case 'clearBlindPlan': {
+      if (!t.blinds) return t;
+      const { blinds: _blinds, ...rest } = t;
+      return rest;
+    }
+
+    case 'editBlindRow': {
+      const old = t.blinds?.levels[action.index];
+      if (!t.blinds || !old || old.kind !== action.row.kind || levelError(action.row)) return t;
+      if (old.smallBlind === action.row.smallBlind && old.bigBlind === action.row.bigBlind && old.minutes === action.row.minutes) return t;
+      return withBlindRows(t, t.blinds.levels.map((row, i) => (i === action.index ? { ...action.row } : row)));
+    }
+
+    case 'removeBlindRow': {
+      const row = t.blinds?.levels[action.index];
+      if (!t.blinds || !row) return t;
+      if (row.kind === 'level' && playLevels(t.blinds.levels).length <= 1) return t;
+      return withBlindRows(t, t.blinds.levels.filter((_, i) => i !== action.index));
+    }
+
+    case 'addBlindLevel': {
+      if (!t.blinds) return t;
+      const last = playLevels(t.blinds.levels).pop()!;
+      const step = ladderSmallBlind(ladderIndexForBigBlind(last.bigBlind) + 1);
+      const smallBlind = step > last.smallBlind ? step : last.smallBlind * 2;
+      return withBlindRows(t, [...t.blinds.levels, { kind: 'level', smallBlind, bigBlind: smallBlind * 2, minutes: last.minutes }]);
+    }
+
+    case 'addBreakAfter': {
+      if (!t.blinds) return t;
+      let seen = 0;
+      const at = t.blinds.levels.findIndex((row) => row.kind === 'level' && ++seen === action.levelNumber);
+      if (at < 0 || t.blinds.levels[at + 1]?.kind === 'break') return t;
+      const rows = t.blinds.levels.slice();
+      rows.splice(at + 1, 0, { kind: 'break', smallBlind: 0, bigBlind: 0, minutes: BREAK_MINUTES });
+      return withBlindRows(t, rows);
+    }
+
+    case 'moveBlindRow': {
+      const to = action.index + action.by;
+      if (!t.blinds || !t.blinds.levels[action.index] || !t.blinds.levels[to]) return t;
+      const rows = t.blinds.levels.slice();
+      [rows[action.index], rows[to]] = [rows[to], rows[action.index]];
+      return withBlindRows(t, rows);
+    }
+
+    case 'setCloseEntriesAfter': {
+      if (!t.blinds || !Number.isInteger(action.levelNumber) || action.levelNumber < 0) return t;
+      const closeEntriesAfterLevel = action.levelNumber === 0 ? undefined : action.levelNumber;
+      if (closeEntriesAfterLevel === t.blinds.closeEntriesAfterLevel) return t;
+      // Choosing a level again re-arms the automatic closing.
+      return { ...t, blinds: { ...t.blinds, closeEntriesAfterLevel, entriesClosed: false } };
+    }
+
+    case 'closeEntries':
+      if (!t.blinds || t.blinds.entriesClosed) return t;
+      return { ...t, rebuysAllowed: false, lateRegOpen: false, blinds: { ...t.blinds, entriesClosed: true } };
+
     case 'undo':
     case 'import':
     case 'newTournament':
+    case 'clockStart':
+    case 'clockPause':
+    case 'clockNext':
+    case 'clockPrevious':
+    case 'clockAdjust':
+    case 'clockReset':
+    case 'setChipCount':
+    case 'setChipMakeup':
       return t; // handled in reduce()
   }
 }
@@ -439,21 +538,50 @@ function syncStatus(t: Tournament): Tournament {
   return t;
 }
 
-export function reduce(state: AppState, action: Action): AppState {
-  if (action.type === 'undo') {
-    if (state.undoStack.length === 0) return state;
-    return {
-      tournament: state.undoStack[state.undoStack.length - 1],
-      undoStack: state.undoStack.slice(0, -1),
-    };
+function reduceChipSet(set: ChipSet, action: Extract<Action, { type: 'setChipCount' | 'setChipMakeup' }>): ChipSet {
+  if (!Number.isInteger(action.count) || action.count < 0 || action.index < 0 || action.index >= set.chips.length) return set;
+  if (action.type === 'setChipCount') {
+    if (set.chips[action.index].count === action.count) return set;
+    return { ...set, chips: set.chips.map((c, i) => (i === action.index ? { ...c, count: action.count } : c)) };
   }
-  if (action.type === 'import') return action.state;
-  if (action.type === 'newTournament') return initialState(action.today);
+  const key = action.stack === 'starting' ? 'startingMakeup' : 'rebuyMakeup';
+  if (set[key][action.index] === action.count) return set;
+  return { ...set, [key]: set[key].map((n, i) => (i === action.index ? action.count : n)) };
+}
+
+export function reduce(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case 'undo':
+      if (state.undoStack.length === 0) return state;
+      return { ...state, tournament: state.undoStack[state.undoStack.length - 1], undoStack: state.undoStack.slice(0, -1) };
+    case 'import':
+      return action.state;
+    case 'newTournament':
+      return { ...initialState(action.today), chipSet: state.chipSet };
+    case 'clockStart':
+    case 'clockPause':
+    case 'clockNext':
+    case 'clockPrevious':
+    case 'clockAdjust':
+    case 'clockReset': {
+      // Clock actions stay out of the Undo history: undoing an elimination must not rewind time.
+      const clock = reduceClock(state.clock, state.tournament.blinds?.levels ?? [], action);
+      return clock === state.clock ? state : { ...state, clock };
+    }
+    case 'setChipCount':
+    case 'setChipMakeup': {
+      const chipSet = reduceChipSet(state.chipSet, action);
+      return chipSet === state.chipSet ? state : { ...state, chipSet };
+    }
+  }
 
   const prev = state.tournament;
   const next = reduceTournament(prev, action);
   if (next === prev) return state;
-  // Undo goes back to the start of play, so setup edits are not recorded.
-  const undoStack = prev.status === 'setup' ? [] : [...state.undoStack, prev].slice(-UNDO_LIMIT);
-  return { tournament: syncStatus(next), undoStack };
+  // Undo goes back to the start of play, so setup edits are not recorded. The automatic closing of
+  // entries is not recorded either: it would be re-applied at once, making Undo impossible past it.
+  let undoStack = state.undoStack;
+  if (prev.status === 'setup') undoStack = [];
+  else if (action.type !== 'closeEntries') undoStack = [...state.undoStack, prev].slice(-UNDO_LIMIT);
+  return { ...state, tournament: syncStatus(next), undoStack };
 }

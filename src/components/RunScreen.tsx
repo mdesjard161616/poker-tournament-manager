@@ -32,9 +32,13 @@ interface Props {
   openDetail: (id: string) => void;
   openSeatingList: () => void;
   goTo: (screen: 'setup' | 'results') => void;
+  /** Big blind in force, when there is a blind structure. */
+  bigBlind: number | null;
+  /** "11:40 p.m." while the clock runs. */
+  endsAround: string | null;
 }
 
-export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, openSeatingList, goTo }: Props) {
+export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, openSeatingList, goTo, bigBlind, endsAround }: Props) {
   const [sheetId, setSheetId] = useState<string | null>(null);
   const [confirmOut, setConfirmOut] = useState(false);
   const [rebuys, setRebuys] = useState(1);
@@ -98,6 +102,12 @@ export function RunScreen({ t, canUndo, selectedId, setSelectedId, openDetail, o
         {avgStack !== null && (
           <span className="counter" title={`${chipsInPlay(t)!.toLocaleString('en-CA')} chips in play`}>
             avg stack <b>{avgStack.toLocaleString('en-CA')}</b>
+            {bigBlind !== null && <> · {Math.round(avgStack / bigBlind)} BB</>}
+          </span>
+        )}
+        {endsAround && (
+          <span className="counter">
+            ends around <b>{endsAround}</b>
           </span>
         )}
         <span className="counter">

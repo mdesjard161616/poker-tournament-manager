@@ -774,14 +774,275 @@ textarea.input.entry {
   white-space: nowrap;
 }
 
+/* ---------- blinds and clock ---------- */
+
+.setup-blinds {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr) 380px;
+  gap: 10px;
+  align-items: start;
+}
+
+.setup.live {
+  grid-template-columns: 250px minmax(0, 1fr);
+}
+
+.setup.live .setup-blinds {
+  grid-column: 2;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.input.num.narrow {
+  width: 64px;
+}
+
+.row.end {
+  justify-content: flex-end;
+}
+
+.set-aside small {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.blind-rows,
+.chip-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.blind-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 1fr 72px 44px;
+  gap: 6px;
+  align-items: center;
+}
+
+.blind-row .input.num,
+.chip-row .input.num {
+  width: 100%;
+  padding: 0 6px;
+}
+
+.blind-row.head,
+.chip-row.head {
+  color: var(--muted);
+  font-size: 13px;
+  min-height: 28px;
+}
+
+.blind-row.break {
+  background: #173a52;
+  border-radius: 8px;
+}
+
+.break-label {
+  font-weight: 700;
+  padding-left: 6px;
+}
+
+.blind-row.locked {
+  opacity: 0.55;
+}
+
+.row-note {
+  font-size: 13px;
+  color: var(--accent);
+  padding: 2px 0 4px 30px;
+}
+
+.row-note.bad-text {
+  color: #ffb4ae;
+}
+
+.chip-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr 1fr 58px;
+  gap: 6px;
+  align-items: center;
+}
+
+.chip-row > span:last-child {
+  text-align: right;
+}
+
+.clock-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: #122821;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.clock-strip b {
+  color: var(--text);
+}
+
+.clock-strip .strip-time {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+}
+
+.clock-strip.flash,
+.clock.flash .clock-face {
+  animation: flash 0.5s step-end infinite;
+}
+
+@keyframes flash {
+  50% {
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+}
+
+.clock {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.wake {
+  min-height: 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.wake.on {
+  color: #8fe0b4;
+}
+
+.wake.refused {
+  color: #ffdf94;
+}
+
+.clock-face {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.clock-level {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: clamp(16px, 3vw, 26px);
+}
+
+.clock-blinds {
+  font-weight: 800;
+  line-height: 1.05;
+  font-size: clamp(44px, 12vw, 120px);
+}
+
+.clock-time {
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(72px, 22vw, 220px);
+}
+
+.clock.last-minute .clock-time {
+  color: #ff8e86;
+}
+
+.clock-paused {
+  font-weight: 700;
+  color: #ffdf94;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.clock-next {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+  color: var(--muted);
+  font-size: clamp(16px, 3vw, 26px);
+}
+
+.clock-next b {
+  color: var(--text);
+}
+
+.clock-chips {
+  margin-top: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #5a4313;
+  color: #ffdf94;
+  font-weight: 700;
+}
+
+.clock-controls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.clock-controls .btn.big {
+  grid-column: 1 / -1;
+  min-height: 60px;
+  font-size: 20px;
+}
+
+.clock-controls .btn {
+  min-height: 52px;
+  padding: 0 4px;
+}
+
+.clock-estimate {
+  color: var(--muted);
+}
+
+.clock-estimate b {
+  color: var(--text);
+}
+
+.clock-foot {
+  justify-content: center;
+}
+
 .jump {
   display: none;
 }
 
 @media (max-width: 1000px) {
   .setup,
+  .setup.live,
   .results {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .setup-blinds,
+  .setup.live .setup-blinds {
+    grid-column: auto;
+    grid-template-columns: minmax(0, 1fr);
+    order: 4;
   }
 
   /* Players and seating first: that is the work at the door. Settings follow. */
@@ -901,6 +1162,20 @@ textarea.input.entry {
 
   .banner.update {
     margin: 8px 8px 0;
+  }
+
+  .clock-strip {
+    gap: 8px;
+    padding: 0 8px;
+    font-size: 14px;
+  }
+
+  .clock-controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tab {
+    font-size: 14px;
   }
 
   /* Empty seats shrink until a player is being placed, so five tables stay a short scroll. */

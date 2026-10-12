@@ -1,6 +1,6 @@
 # Poker Tournament Manager
 
-Runs alongside a blind clock and handles the rest of a home tournament: the player list, the table draw, who owes what, eliminations, and alerts to balance or break tables. One device, no server, no accounts. The spec is in [docs/spec.md](docs/spec.md).
+Runs a home poker tournament: the player list, the table draw, who owes what, eliminations, and alerts to balance or break tables. It also suggests a blind structure, estimates how long the night will last and runs the clock. One device, no server, no accounts. The specs are [docs/spec.md](docs/spec.md) and [docs/blind-levels-spec.md](docs/blind-levels-spec.md).
 
 ## Run it
 
@@ -35,5 +35,7 @@ The tournament is saved in the browser's storage on the device after every actio
 ## Layout
 
 - `src/logic/` holds the draw, alerts, money, payouts, places, the reducer and storage, with no React imports. `logic.test.ts` covers the spec's acceptance table.
-- `src/components/` holds the four screens (Setup, Run, Money, Results) and the dialogs.
+- `src/logic/blinds.ts` holds the blind ladder, the structure generator, the duration estimate, the chip checks and the clock arithmetic; `blinds.test.ts` covers that spec's acceptance table.
+- `src/components/` holds the five screens (Setup, Run, Clock, Money, Results) and the dialogs.
+- `src/clock.ts` holds what needs a browser: the ticking time, the sound and keeping the screen on.
 - `src/store.ts` connects the reducer to the browser's storage and to React.

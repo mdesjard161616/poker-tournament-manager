@@ -16,21 +16,24 @@ import {
   suggestedTableCount,
   unseatedPlayers,
 } from '../logic/logic';
-import type { Player, Tournament } from '../logic/types';
+import type { ChipSet, Player, Tournament } from '../logic/types';
 import { dispatch } from '../store';
+import { BlindsPanel } from './BlindsPanel';
 import { NumInput, Toggle } from './common';
 import { PayoutEditor } from './PayoutEditor';
 import { TableGrid } from './TableGrid';
 
 interface Props {
   t: Tournament;
+  chipSet: ChipSet;
+  lockedBlindRows: number;
   selectedId: string | null;
   setSelectedId: (id: string | null) => void;
   openDetail: (id: string) => void;
   openSeatingList: () => void;
 }
 
-export function SetupScreen({ t, selectedId, setSelectedId, openDetail, openSeatingList }: Props) {
+export function SetupScreen({ t, chipSet, lockedBlindRows, selectedId, setSelectedId, openDetail, openSeatingList }: Props) {
   const setup = t.status === 'setup';
   const [entry, setEntry] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -73,7 +76,7 @@ export function SetupScreen({ t, selectedId, setSelectedId, openDetail, openSeat
   };
 
   return (
-    <div className="setup">
+    <div className={`setup${setup ? '' : ' live'}`}>
       <div className="setup-side">
         <div className="panel">
           <h3>Settings</h3>
@@ -312,6 +315,8 @@ export function SetupScreen({ t, selectedId, setSelectedId, openDetail, openSeat
           />
         </div>
       )}
+
+      <BlindsPanel t={t} chipSet={chipSet} lockedRows={lockedBlindRows} />
     </div>
   );
 }

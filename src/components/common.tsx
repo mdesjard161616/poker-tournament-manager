@@ -31,12 +31,15 @@ export function NumInput(props: {
   disabled?: boolean;
   onCommit: (value: number) => void;
   label?: string;
+  /** Extra rule; a value that fails it snaps back like one out of range. */
+  validate?: (value: number) => boolean;
 }) {
   const [draft, setDraft] = useState(String(props.value));
   useEffect(() => setDraft(String(props.value)), [props.value]);
   const commit = () => {
     const n = Number(draft);
-    const ok = draft.trim() !== '' && Number.isInteger(n) && n >= props.min && (props.max === undefined || n <= props.max);
+    const ok =
+      draft.trim() !== '' && Number.isInteger(n) && n >= props.min && (props.max === undefined || n <= props.max) && (props.validate?.(n) ?? true);
     if (ok && n !== props.value) props.onCommit(n);
     else setDraft(String(props.value));
   };

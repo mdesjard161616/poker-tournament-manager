@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { playSignal, useNow } from './clock';
+import { ClockScreen, chipsForEstimate } from './components/ClockScreen';
 import { MoneyScreen } from './components/MoneyScreen';
 import { PlayerDetail } from './components/PlayerDetail';
 import { ResultsScreen } from './components/ResultsScreen';
@@ -6,16 +8,18 @@ import { RunScreen } from './components/RunScreen';
 import { SettingsMenu } from './components/SettingsMenu';
 import { SetupScreen } from './components/SetupScreen';
 import { Modal } from './components/common';
+import { clockElapsedMs, clockPosition, clockRunning, clockStarted, estimateDuration, formatBlinds, formatCountdown, shouldCloseEntries } from './logic/blinds';
 import { activePlayers } from './logic/logic';
 import type { Status, Tournament } from './logic/types';
 import { dispatch, getSaveError, useAppState } from './store';
 import { VERSION } from './version';
 
-type Screen = 'setup' | 'run' | 'money' | 'results';
+type Screen = 'setup' | 'run' | 'clock' | 'money' | 'results';
 
 const screens: { key: Screen; label: string }[] = [
   { key: 'setup', label: 'Setup' },
   { key: 'run', label: 'Run' },
+  { key: 'clock', label: 'Clock' },
   { key: 'money', label: 'Money' },
   { key: 'results', label: 'Results' },
 ];
@@ -83,6 +87,52 @@ export default function App() {
   };
 
   const selected = selectedId && activePlayers(t).some((p) => p.id === selectedId) ? selectedId : null;
+  // ---- the clock: everything shown is derived from its start time, the levels and the current time ----
+  const plan = t.blinds;
+  const running = clockRunning(state.clock);
+  const now = useNow(running);
+  const elapsedMs = clockElapsedMs(state.clock, now);
+  const position = plan ? clockPosition(plan.levels, elapsedMs) : null;
+  const [flash, setFlash] = useState(false);
+  const [entriesNotice, setEntriesNotice] = useState<number | null>(null);
+
+  // Sound, vibration and a flash at one minute left and at each change of level.
+  const lastRow = useRef<number | null>(null);
+  const lastMinute = useRef(false);
+  const rowIndex = position?.rowIndex ?? null;
+  const inLastMinute = position !== null && position.msLeft <= 60000;
+  useEffect(() => {
+    const rowChanged = lastRow.current !== null && rowIndex !== null && rowIndex !== lastRow.current;
+    const minuteStarted = inLastMinute && !lastMinute.current && !rowChanged;
+    lastRow.current = rowIndex;
+    lastMinute.current = inLastMinute;
+    if (!running || (!rowChanged && !minuteStarted)) return;
+    playSignal(rowChanged ? 'level' : 'warning');
+    setFlash(true);
+  }, [rowIndex, inLastMinute, running]);
+  useEffect(() => {
+    if (!flash) return;
+    const timer = window.setTimeout(() => setFlash(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [flash]);
+
+  // Rebuys and late registration close when the chosen level ends.
+  const closeNow = plan !== undefined && running && shouldCloseEntries(plan, position);
+  useEffect(() => {
+    if (!closeNow) return;
+    setEntriesNotice(plan?.closeEntriesAfterLevel ?? null);
+    dispatch({ type: 'closeEntries' });
+  }, [closeNow]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The clock stops with the tournament.
+  useEffect(() => {
+    if (t.status === 'finished' && running) dispatch({ type: 'clockPause', now: Date.now() });
+  }, [t.status, running]);
+
+  const estimate = plan && running ? estimateDuration(plan.levels, chipsForEstimate(t)) : null;
+  const endsInMs = estimate ? estimate.likely.minutes * 60000 - elapsedMs : 0;
+  const endsAround = endsInMs > 0 ? new Date(now + endsInMs).toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' }) : null;
+
   const saveError = getSaveError();
   const newVersion = useNewVersion();
 
@@ -114,10 +164,41 @@ export default function App() {
         </div>
       )}
 
+      {entriesNotice !== null && (
+        <div className="banner balance update">
+          <span className="grow">
+            Level {entriesNotice} is over: rebuys and late registration are now closed. Settings reopens them.
+          </span>
+          <button className="btn small" onClick={() => setEntriesNotice(null)}>
+            OK
+          </button>
+        </div>
+      )}
+      {plan && position && screen !== 'clock' && (clockStarted(state.clock) || t.status === 'running') && (
+        <button className={`clock-strip${flash ? ' flash' : ''}`} onClick={() => setScreen('clock')}>
+          {clockStarted(state.clock) ? (
+            <>
+              <b>{position.isBreak ? 'Break' : `Level ${position.levelNumber}`}</b>
+              {!position.isBreak && <span>{formatBlinds(position.smallBlind, position.bigBlind)}</span>}
+              <b className="strip-time">{formatCountdown(position.msLeft)}</b>
+              {!running && <span>paused</span>}
+              {position.next && <span>next {formatBlinds(position.next.smallBlind, position.next.bigBlind)}</span>}
+            </>
+          ) : (
+            <span>Clock not started · tap to open</span>
+          )}
+        </button>
+      )}
+
       <main>
+        {screen === 'clock' && (
+          <ClockScreen t={t} clock={state.clock} position={position} elapsedMs={elapsedMs} now={now} flash={flash} goToSetup={() => setScreen('setup')} />
+        )}
         {screen === 'setup' && (
           <SetupScreen
             t={t}
+            chipSet={state.chipSet}
+            lockedBlindRows={clockStarted(state.clock) && position ? position.rowIndex : 0}
             selectedId={selected}
             setSelectedId={setSelectedId}
             openDetail={setDetailId}
@@ -133,6 +214,8 @@ export default function App() {
             openDetail={setDetailId}
             openSeatingList={() => setSeatingList(true)}
             goTo={setScreen}
+            bigBlind={position?.bigBlind ?? null}
+            endsAround={endsAround}
           />
         )}
         {screen === 'money' && <MoneyScreen t={t} openDetail={setDetailId} />}
