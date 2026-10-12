@@ -130,15 +130,36 @@ The clock runs from a start time, not from a ticking counter, so closing the app
 - Controls: Pause and Resume, Previous level, Next level, add 1 minute, remove 1 minute.
 - At 1 minute left and at each level change: a sound, a vibration where the phone supports it, and a colour flash on the clock.
 - When the last row ends, the clock keeps adding levels by doubling the blinds, at the last row's length.
-- While the clock runs, the screen is kept awake.
+- While the Clock tab is open, the phone's screen does not dim or lock. See "Keeping the screen on" below.
 - Clock actions are not part of Undo. Undoing an elimination must never rewind the clock, and the clock has its own Previous level control.
 
 Rebuys and late registration: a setting "Close rebuys and late registration at the end of level N" (default: the level before the first break). When that level ends, the app turns both off and shows a banner; the host can turn them back on in Settings.
 
 Phone limits to know about:
 
-- A phone cannot play a sound while its screen is locked or another app is in front. The clock keeps correct time, but the level-change sound only plays while the app is on screen. Keeping the screen awake covers the normal case.
+- A phone cannot play a sound while its screen is locked or another app is in front. The clock keeps correct time, but the level-change sound only plays while the app is on screen. Leaving the phone on the Clock tab covers the normal case.
 - iPhones do not support vibration from a web app; the sound and the flash still work.
+
+## Keeping the screen on
+
+A web app can stop the screen from locking, and the app does so for as long as the Clock tab is the one on screen.
+
+- On the Clock tab, the screen stays on whether the clock is running, paused or not started yet.
+- On every other tab the phone dims and locks as usual, so a phone left on the Money screen does not drain its battery.
+- The phone ends the hold whenever the app leaves the screen (another app in front, or the phone locked by hand). The app asks for it again each time the Clock tab comes back into view.
+- The Clock tab shows a small "Screen stays on" mark while the hold is active. If the phone refuses, it shows "This phone may lock the screen: raise Auto-Lock in the phone's settings" instead.
+
+Where it works and where it does not:
+
+| Device | Result |
+| --- | --- |
+| Android, Chrome | Works |
+| iPhone or iPad, Safari, iOS 16.4 or later | Works |
+| iPhone app added to the home screen | Works from iOS 18.4; earlier versions ignore the request, and the fallback message shows |
+| Any phone in battery-saver or Low Power Mode | The phone may refuse; the fallback message shows |
+| Laptop browsers | Works in Chrome, Edge and Safari |
+
+Keeping the screen on uses more battery over a five-hour night, so the phone running the clock should be plugged in.
 
 ## Screens
 
@@ -193,13 +214,14 @@ interface ClockState {
 - `ClockState` lives beside the tournament, outside the Undo history, and is saved after every clock action.
 - The current level, the time left and the chip-removal marks are derived; they are never stored.
 - The sound is generated in the browser. No file is downloaded and nothing needs a network.
+- The screen hold uses the browser's Screen Wake Lock. It is requested when the Clock tab opens and when the page becomes visible again on that tab, and released when the host leaves the tab. A refusal is caught and shown, never an error.
 - Saved tournaments from before this change load with no blind plan and no clock.
 
-Build order: generator and estimate with tests, then the Setup panel, then the chip set and its checks, then the clock arithmetic with tests, then the Clock tab and strip, then sound, vibration and keep-awake.
+Build order: generator and estimate with tests, then the Setup panel, then the chip set and its checks, then the clock arithmetic with tests, then the Clock tab and strip, then sound, vibration and keeping the screen on.
 
 ## Acceptance tests
 
-Each row is a unit test on the logic module. "Typical night" is 20 players at 5,000 and 10 rebuys at 5,000.
+Each row is a unit test on the logic module, except the three "Screen" rows, which are checked by hand on a phone. "Typical night" is 20 players at 5,000 and 10 rebuys at 5,000.
 
 | Area | Given | Expected |
 | --- | --- | --- |
@@ -226,6 +248,9 @@ Each row is a unit test on the logic module. "Typical night" is 20 players at 5,
 | Clock | Past the last row | A new level with doubled blinds |
 | Undo | Eliminate, then Undo, while the clock runs | Clock unaffected |
 | Entries | End of the chosen closing level | Rebuys and late registration turned off |
+| Screen | Phone left on the Clock tab past its Auto-Lock time | Screen still on, "Screen stays on" shown |
+| Screen | Switch to another app and back to the Clock tab | Screen stays on again without any tap |
+| Screen | Phone left on the Run tab | Locks as usual |
 
 ## Assumptions to confirm
 
@@ -238,6 +263,7 @@ These are choices made without an answer from the host; change any of them befor
 - [ ] Rebuys and late registration close automatically at a chosen level, with the host able to reopen them.
 - [ ] The clock is started by its own button, separately from the tournament's Start.
 - [ ] The clock gets a fifth tab rather than living inside the Run screen.
+- [ ] The screen is kept on only on the Clock tab, not on the other tabs while the clock runs.
 - [ ] The app reminds the host to remove 25s, 100s and 500s once the blinds no longer need them.
 - [ ] The app checks the chip set against the expected field but does not work out the stack make-up itself; the host enters it.
 - [ ] The chip set is remembered across tournaments; everything else still starts empty.
