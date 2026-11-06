@@ -61,21 +61,21 @@ The three divisors (20, 30, 10) are the only tuning values, and they are unteste
 
 ## Fitting a desired length
 
-When the host enters a desired length, the app changes the level length and the number of levels so the likely end lands on it, keeping the same first and last blinds.
+When the host enters a desired length, the app changes the number of levels so the likely end lands on it, keeping the same first and last blinds. **The level length is the host's choice and never changes**: 20-minute levels stay 20-minute levels, and only the blinds are spread further apart or closer together. (Changed in v1.9.2; until then the app also changed the level length.)
 
 1. Play time = desired length less the breaks.
-2. For each allowed level length, the number of levels is play time / level length, rounded.
-3. The app keeps the combination closest to the desired length in which no level raises the blinds by more than 100% and the average raise is closest to 35%.
+2. At the host's level length, the number of levels is play time / level length, rounded.
+3. The app keeps the count closest to the desired length in which no level raises the blinds by more than 100%.
 4. If fewer levels than the full ladder are needed, steps are dropped as evenly as possible; the first and expected last levels always stay.
 
-Worked example: the same night with a desired length of 4 hours gives 15-minute levels and 15 levels (one ladder step dropped), 3 h 45 of play plus one break: 3 h 55.
+Worked example: the same night at 20-minute levels with a desired length of 4 hours gives 11 levels (five ladder steps dropped), 3 h 40 of play plus one break: 3 h 50. At 15-minute levels the same 4 hours gives 15 levels and 3 h 55.
 
-Limits, with a plain message instead of a bad structure:
+Limits, with a plain message instead of a bad structure. At 20-minute levels the typical night can play from 3 h 10 (blinds doubling every level) to 5 h 40 (every step):
 
-- Too short: "The shortest this field can play is about 1 h 30 (10-minute levels, blinds doubling). To go faster, raise the starting blinds or lower the starting stack."
-- Too long: "The longest is about 8 h 30 (30-minute levels, every step). To go longer, raise the starting stack."
+- Too short: "With 20-minute levels, the shortest this field can play is about 3 h 10 (blinds doubling every level). To go faster, pick shorter levels or lower the starting stack."
+- Too long: "With 20-minute levels, the longest is about 5 h 40 (every step of the ladder). To go longer, pick longer levels or raise the starting stack."
 
-A single "Shorter / Longer" pair of buttons moves the suggestion to the next shorter or longer valid combination, for the host who has no exact target.
+A single "Shorter / Longer" pair of buttons moves the suggestion to the next shorter or longer number of levels at the same level length, for the host who has no exact target.
 
 ## Chip set
 
@@ -232,8 +232,10 @@ Each row is a unit test on the logic module, except the three "Screen" rows, whi
 | Last level | Typical night | Expected last level 4,000/8,000 |
 | Structure | Typical night, 20-minute levels, no desired length | 16 levels to the expected last, 3 more after, breaks after levels 5, 11 and 18 (the first two moved one level earlier, from 6 and 12, to line up with removing the 25s and the 100s) |
 | Estimate | Typical night | Likely 5 h 40, earliest 5 h 20 at 3,000/6,000, latest 6 h 50 at 8,000/16,000 |
-| Fit | Typical night, desired length 4 h | 15-minute levels, 15 levels to the expected last, likely end 3 h 55 |
-| Fit | Typical night, desired length 1 h | Rejected, shortest possible length 1 h 30 |
+| Fit | Typical night, 20-minute levels, desired length 4 h | Levels stay 20 minutes, 11 levels to the expected last, likely end 3 h 50 |
+| Fit | Typical night, 15-minute levels, desired length 4 h | 15 levels to the expected last, likely end 3 h 55 |
+| Fit | Typical night, 20-minute levels, desired length 2 h | Rejected, shortest at 20-minute levels 3 h 10 |
+| Fit | Any level length, any desired length, Shorter or Longer | The level length the host picked is unchanged |
 | Fit | Any fitted structure | No raise above 100%, first and expected last levels kept, big blinds strictly increasing |
 | Ladder | Every suggested level | Both blinds are multiples of 25 |
 | Live estimate | 25 players and 15 rebuys actually recorded | Recalculated from 200,000 chips, not from the expected 150,000 |

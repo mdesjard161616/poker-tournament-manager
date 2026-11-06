@@ -247,12 +247,16 @@ export interface FitOption {
   averageRaise: number;
 }
 
-/** Every level length and level count that plays this field with no raise above double. */
+/**
+ * Every level count that plays this field with no raise above double, at the host's level length.
+ * The level length is the host's choice and is never changed to fit a length: only the blinds are.
+ */
 export function fitOptions(inputs: PlanInputs): FitOption[] {
   const { first, last } = ladderRange(inputs);
   const ratio = ladderBigBlind(last) / ladderBigBlind(first);
   const options: FitOption[] = [];
-  for (const levelMinutes of LEVEL_LENGTHS) {
+  const levelMinutes = inputs.levelMinutes;
+  {
     for (let n = minLevels(first, last); n <= last - first + 1; n++) {
       if (!pickLadderSteps(first, last, n)) continue;
       options.push({
@@ -286,14 +290,14 @@ export function fitToLength(inputs: PlanInputs, desiredMinutes: number): FitResu
   const longest = steps[steps.length - 1].totalMinutes;
   if (desiredMinutes < shortest - 10) {
     return {
-      error: `The shortest this field can play is about ${formatDuration(shortest)} (10-minute levels, blinds doubling). To go faster, raise the starting blinds or lower the starting stack.`,
+      error: `With ${inputs.levelMinutes}-minute levels, the shortest this field can play is about ${formatDuration(shortest)} (blinds doubling every level). To go faster, pick shorter levels or lower the starting stack.`,
       shortest,
       longest,
     };
   }
   if (desiredMinutes > longest + 10) {
     return {
-      error: `The longest is about ${formatDuration(longest)} (30-minute levels, every step). To go longer, raise the starting stack.`,
+      error: `With ${inputs.levelMinutes}-minute levels, the longest is about ${formatDuration(longest)} (every step of the ladder). To go longer, pick longer levels or raise the starting stack.`,
       shortest,
       longest,
     };
@@ -308,12 +312,11 @@ export type Suggestion = { rows: BlindLevel[]; levelMinutes: number } | { error:
 export function suggestStructure(inputs: PlanInputs, chipValues: number[] = CHIP_VALUES): Suggestion {
   if (inputs.startingChips <= 0) return { error: 'Enter the starting stack first.' };
   const { first, last } = ladderRange(inputs);
-  let levelMinutes = inputs.levelMinutes;
+  const levelMinutes = inputs.levelMinutes;
   let steps = pickLadderSteps(first, last, last - first + 1)!;
   if (inputs.desiredMinutes !== undefined) {
     const fit = fitToLength(inputs, inputs.desiredMinutes);
     if ('error' in fit) return { error: fit.error };
-    levelMinutes = fit.option.levelMinutes;
     steps = pickLadderSteps(first, last, fit.option.levels)!;
   }
   return { rows: buildRows(steps, levelMinutes, chipValues), levelMinutes };

@@ -138,7 +138,7 @@ export function BlindsPanel({ t, chipSet, lockedRows }: Props) {
             <input className="input num narrow" type="number" inputMode="numeric" aria-label="Desired minutes" placeholder="min" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
           </span>
         </div>
-        <p className="hint">Leave the desired length empty to use the level length as chosen. With a desired length, the app picks the level length.</p>
+        <p className="hint">The level length stays as you picked it. A desired length, Shorter and Longer change only the number of levels, so the blinds rise faster or slower.</p>
         <div className="row wrap">
           <button className="btn primary grow" onClick={() => apply(inputs)}>
             {plan ? 'Suggest again' : 'Suggest a structure'}

@@ -145,10 +145,31 @@ describe('estimate', () => {
 });
 
 describe('fitting a desired length', () => {
-  it('4 hours: 15-minute levels, 15 levels, 3 h 55', () => {
+  it('4 hours at 20-minute levels: the levels stay 20 minutes, 11 levels, 3 h 50', () => {
     const fit = fitToLength(typical, 240);
-    expect(fit).toMatchObject({ option: { levelMinutes: 15, levels: 15, totalMinutes: 235 } });
+    expect(fit).toMatchObject({ option: { levelMinutes: 20, levels: 11, totalMinutes: 230 } });
     const rows = rowsFor({ ...typical, desiredMinutes: 240 });
+    expect(playLevels(rows).every((r) => r.minutes === 20)).toBe(true);
+    expect(blinds(rows)[10]).toBe('4,000/8,000');
+  });
+
+  it('the level length the host picked is never changed, whatever the desired length', () => {
+    for (const levelMinutes of [10, 15, 20, 30]) {
+      for (const option of fitSteps({ ...typical, levelMinutes })) {
+        expect(option.levelMinutes).toBe(levelMinutes);
+        const s = suggestStructure({ ...typical, levelMinutes, desiredMinutes: option.totalMinutes });
+        if ('error' in s) throw new Error(s.error);
+        expect(s.levelMinutes).toBe(levelMinutes);
+        expect(playLevels(s.rows).every((r) => r.minutes === levelMinutes)).toBe(true);
+      }
+    }
+  });
+
+  it('4 hours at 15-minute levels: 15 levels, 3 h 55', () => {
+    const fifteen = { ...typical, levelMinutes: 15 };
+    const fit = fitToLength(fifteen, 240);
+    expect(fit).toMatchObject({ option: { levelMinutes: 15, levels: 15, totalMinutes: 235 } });
+    const rows = rowsFor({ ...fifteen, desiredMinutes: 240 });
     const levels = blinds(rows);
     expect(levels).toHaveLength(18);
     expect(levels[0]).toBe('25/50');
@@ -158,12 +179,12 @@ describe('fitting a desired length', () => {
     expect(formatDuration(estimateDuration(rows, 150000)!.likely.minutes)).toBe('3 h 55');
   });
 
-  it('1 hour is rejected with the shortest possible length', () => {
-    const fit = fitToLength(typical, 60);
-    expect(fit).toMatchObject({ shortest: 90, longest: 510 });
-    expect('error' in fit && fit.error).toContain('1 h 30');
-    expect(suggestStructure({ ...typical, desiredMinutes: 60 })).toHaveProperty('error');
-    expect('error' in fitToLength(typical, 900) && (fitToLength(typical, 900) as { error: string }).error).toContain('8 h 30');
+  it('a length out of reach at 20-minute levels is rejected with the range those levels allow', () => {
+    const fit = fitToLength(typical, 120);
+    expect(fit).toMatchObject({ shortest: 190, longest: 340 });
+    expect('error' in fit && fit.error).toContain('3 h 10');
+    expect(suggestStructure({ ...typical, desiredMinutes: 120 })).toHaveProperty('error');
+    expect('error' in fitToLength(typical, 480) && (fitToLength(typical, 480) as { error: string }).error).toContain('5 h 40');
   });
 
   it('no fitted structure more than doubles the blinds, and first and last levels stay', () => {
@@ -180,8 +201,7 @@ describe('fitting a desired length', () => {
 
   it('shorter and longer steps are distinct lengths in order', () => {
     const totals = fitSteps(typical).map((o) => o.totalMinutes);
-    expect(totals[0]).toBe(90);
-    expect(totals[totals.length - 1]).toBe(510);
+    expect(totals).toEqual([190, 210, 230, 250, 280, 300, 320, 340]);
     expect(totals).toEqual([...new Set(totals)].sort((a, b) => a - b));
   });
 });
